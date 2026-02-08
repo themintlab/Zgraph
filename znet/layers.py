@@ -93,7 +93,7 @@ class MixingNode(nn.Module):
     
 
 
-***
-Source nodes integrate reference potentials directly or as enthalpic contributions after? 
-Mixing nodes / enthalpic interaction tensor. 
-**
+# ***
+# Source nodes integrate reference potentials directly or as enthalpic contributions after? 
+# Mixing nodes / enthalpic interaction tensor. 
+# **
