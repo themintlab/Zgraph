@@ -18,21 +18,17 @@ class SourceNode(nn.Module):
         """
         super().__init__()
         self.key = key
-        
-        # The "Enthalpic Interaction" at the leaf level is the Reference Energy (E_ref)
-        # We make it a parameter so it can be learned or fixed.
-        self.reference_energy = nn.Parameter(torch.full(shape, energy_init))
 
     def forward(self, inputs, temperature=None):
         # 1. Zero-Cost Lookup
         if self.key not in inputs:
              raise KeyError(f"SourceNode '{self.key}' input missing.")
         
-        phi_in = inputs[self.key]
+        return inputs[self.key]
         
-        # 2. Vectorized Addition (Bias)
-        # Broadcasting handles (Batch, D) + (D,)
-        return phi_in + self.reference_energy
+        # # 2. Vectorized Addition (Bias)
+        # # Broadcasting handles (Batch, D) + (D,)
+        # return phi_in + self.reference_energy
 
 
 
