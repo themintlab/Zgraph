@@ -5,7 +5,7 @@ from . import functional as F
 from .constants import DEFAULT_KB
 
 class SourceNode(nn.Module):
-    def __init__(self, key, shape=(1,), energy_init=0.0):
+    def __init__(self, key):
         """
         Leaf node: Retreives a potential from inputs and adds a reference energy.
         
@@ -13,7 +13,6 @@ class SourceNode(nn.Module):
         
         Args:
             key (str): The key to look up in the input dictionary.
-            shape (tuple): Shape of the reference energy tensor (e.g., (1,) for scalar).
             energy_init (float): Initial value for the reference energy parameter.
         """
         super().__init__()
