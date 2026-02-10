@@ -18,6 +18,7 @@ class SourceNode(nn.Module):
         super().__init__()
         self.key = key
 
+    #TODO: Note negative has been added to reflect application of chemical potential. Fix when adding reference potential?
     def forward(self, inputs, temperature):
         if self.key not in inputs:
              raise KeyError(f"SourceNode '{self.key}' input missing.")
