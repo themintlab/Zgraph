@@ -27,6 +27,21 @@ def build_energy_tensor(phi_vectors, interaction_tensor=None):
     batch_size = phi_vectors[0].shape[0]
     num_children = len(phi_vectors)
     
+    # 1b. Normalize Shapes: Ensure all vectors are at least (Batch, D)
+    # If a vector is (Batch,), treat it as (Batch, 1).
+    #TODO: Ensure this is efficient!
+    normalized_phis = []
+    for i, v in enumerate(phi_vectors):
+        if v.dim() == 1:
+            # Check consistency (optional but good practice)
+            if v.shape[0] != batch_size:
+                 raise ValueError(f"Batch dimension mismatch at index {i}. Expected {batch_size}, got {v.shape[0]}")
+            normalized_phis.append(v.view(-1, 1))
+        else:
+            normalized_phis.append(v)
+            
+    phi_vectors = normalized_phis
+
     # Collect state dimensions (D_1, D_2, ...)
     # Each vec is (Batch, D_i), so we take dim 1
     state_dims = [v.shape[1] for v in phi_vectors]

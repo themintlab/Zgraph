@@ -18,10 +18,10 @@ class SourceNode(nn.Module):
         super().__init__()
         self.key = key
 
-    def forward(self, inputs, temperature=None):
+    def forward(self, inputs, temperature):
         if self.key not in inputs:
              raise KeyError(f"SourceNode '{self.key}' input missing.")
-        return inputs[self.key]
+        return -inputs[self.key]
         
     def __repr__(self):
         return f"SourceNode('{self.key}')"
@@ -33,15 +33,15 @@ class MixingNode(nn.Module):
     Couples children nodes via an Enthalpy Matrix and marginalizes.
     """
     def __init__(self, 
-                 children, 
-                 interaction=None, 
+                 sub_nodes, 
+                 enthalpy=None, 
                  trainable=False, 
                  keep_dims=None, 
                  k_b=DEFAULT_KB):
         """
         Args:
-            children (list): List of child Modules.
-            interaction (Tensor/tuple/None): 
+            sub_nodes (list): List of sub-nodes.
+            enthalpy (Tensor/tuple/None): 
                 - None: Ideal Mixing (Trigger Shortcut).
                 - Tensor: Fixed/Initial Enthalpy Matrix.
                 - Tuple: Shape of Enthalpy Matrix to learn from scratch.
@@ -51,19 +51,24 @@ class MixingNode(nn.Module):
         super().__init__()
         self.k_b = k_b
         self.keep_dims = keep_dims
-        self.children = nn.ModuleList(children)
+        
+        # Ensure sub_nodes is always a list, even if a single node is provided
+        if not isinstance(sub_nodes, (list, tuple)):
+            sub_nodes = [sub_nodes]
+        
+        self.sub_nodes = nn.ModuleList(sub_nodes)
 
         # --- Enthalpy Initialization ---
-        if interaction is None:
+        if enthalpy is None:
             self.enthalpy = None # Flag for Ideal Mixing Shortcut
             
-        elif isinstance(interaction, (tuple, list)):
+        elif isinstance(enthalpy, (tuple, list)):
             # Learn from scratch (Initialize to 0)
-            self.enthalpy = nn.Parameter(torch.zeros(*interaction))
+            self.enthalpy = nn.Parameter(torch.zeros(*enthalpy))
             
-        elif isinstance(interaction, torch.Tensor):
+        elif isinstance(enthalpy, torch.Tensor):
             # Physics-Informed (Clone provided tensor)
-            self.enthalpy = nn.Parameter(interaction.clone())
+            self.enthalpy = nn.Parameter(enthalpy.clone())
             
         else:
             raise ValueError("Interaction must be None, tuple (shape), or Tensor.")
@@ -72,18 +77,18 @@ class MixingNode(nn.Module):
         if self.enthalpy is not None:
             self.enthalpy.requires_grad = trainable
 
-    def forward(self, inputs, temperature):
+    def forward(self, inputs, temperature=293.15):
         # 1. Gather Inputs (Recursive)
-        child_outputs = [child(inputs, temperature) for child in self.children]
+        child_outputs = [mod(inputs, temperature) for mod in self.sub_nodes]
+
         
         # --- SHORTCUT: Ideal Mixing Optimization ---
         # Condition: No Enthalpy AND Full Collapse (Scalar Output)
-        # If we are just mixing independent systems, Phi_total = Sum(Phi_children)
-        if self.enthalpy is None and self.keep_dims is None:
+        #if self.enthalpy is None and self.keep_dims is None:
             # We assume children return Scalars (Batch, 1) or compatible shapes
             # We simply sum them up. 
             # This avoids O(D^N) tensor construction entirely.
-            print("Ideal caImplement laterse detected. ")
+            #print("Ideal case detected. Implement later.")
             # total_phi = child_outputs[0]
             # for i in range(1, len(child_outputs)):
             #     total_phi = total_phi + child_outputs[i]
@@ -125,6 +130,22 @@ class MixingNode(nn.Module):
             k_b=self.k_b,
             keepdim=keep_flag
         )
+
+class StackNode(nn.Module):
+    """
+    Combines mutually exclusive components (Species) into a single state vector.
+    Logic: [Phi_A, Phi_B] -> Tensor([Phi_A, Phi_B])
+    """
+    def __init__(self, sub_nodes):
+        super().__init__()
+        self.sub_nodes = nn.ModuleList(sub_nodes)
+        
+    def forward(self, inputs, temperature = 293.15):
+        # Gather all scalar potentials: [ (Batch, 1), (Batch, 1), ... ]
+        scalars = [child(inputs, temperature) for child in self.sub_nodes]
+        
+        # Concatenate along the last dimension to make a vector: (Batch, N_species)
+        return torch.cat(scalars, dim=-1)
 
 # ***
 # Source nodes integrate reference potentials directly or as enthalpic contributions after? 
