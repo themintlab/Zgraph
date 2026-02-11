@@ -84,16 +84,20 @@ class MixingNode(nn.Module):
 
         
         # --- SHORTCUT: Ideal Mixing Optimization ---
-        # Condition: No Enthalpy AND Full Collapse (Scalar Output)
-        if self.enthalpy is None and self.keep_dims is None:
-            # We assume children return Scalars (Batch, 1) or compatible shapes
-            # We simply sum them up. 
-            # This avoids O(D^N) tensor construction entirely.
-            # print("Ideal case detected. Implement later.")
-            total_phi = child_outputs[0]
-            for i in range(1, len(child_outputs)):
-                total_phi = total_phi + child_outputs[i]
-            return total_phi
+        # Condition: No Enthalpy AND Full Collapse (Scalar Output) 
+        ## Also ensure all children are scalars (dimension 1), otherwise we need to marginalize.
+        #if self.enthalpy is None and self.keep_dims is None):
+        # Also ensure all children are scalars (dimension 1), otherwise we need to marginalize.
+        # TODO: Something funny with this shortcut. Test with full marginalization and then return. 
+        # if self.enthalpy is None and self.keep_dims is None and all(c.shape[1] == 1 for c in child_outputs):
+        #     # We assume children return Scalars (Batch, 1) or compatible shapes
+        #     # We simply sum them up. 
+        #     # This avoids O(D^N) tensor construction entirely.
+        #     # print("Ideal case detected. Implement later.")
+        #     total_phi = child_outputs[0]
+        #     for i in range(1, len(child_outputs)):
+        #         total_phi = total_phi + child_outputs[i]
+        #     return total_phi
 
         # --- STANDARD PATH: Interacting Systems ---
         
