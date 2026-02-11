@@ -19,7 +19,7 @@ class SourceNode(nn.Module):
         self.key = key
 
     #TODO: Note negative has been added to reflect application of chemical potential. Fix when adding reference potential?
-    def forward(self, inputs, temperature):
+    def forward(self, inputs, temperature=293.15):
         if self.key not in inputs:
              raise KeyError(f"SourceNode '{self.key}' input missing.")
         return -inputs[self.key]
@@ -62,17 +62,17 @@ class MixingNode(nn.Module):
         # --- Enthalpy Initialization ---
         if enthalpy is None:
             self.enthalpy = None # Flag for Ideal Mixing Shortcut
-            
         elif isinstance(enthalpy, (tuple, list)):
             # Learn from scratch (Initialize to 0)
             self.enthalpy = nn.Parameter(torch.zeros(*enthalpy))
-            
         elif isinstance(enthalpy, torch.Tensor):
             # Physics-Informed (Clone provided tensor)
             self.enthalpy = nn.Parameter(enthalpy.clone())
-            
+        elif isinstance(enthalpy, (int, float)):
+             # Scalar offset (Learnable or Fixed)
+             self.enthalpy = nn.Parameter(torch.tensor(float(enthalpy)))
         else:
-            raise ValueError("Interaction must be None, tuple (shape), or Tensor.")
+            raise ValueError("Interaction must be None, tuple (shape), Tensor, or scalar.")
 
         # --- Freeze/Thaw Physics ---
         if self.enthalpy is not None:
@@ -85,26 +85,23 @@ class MixingNode(nn.Module):
         
         # --- SHORTCUT: Ideal Mixing Optimization ---
         # Condition: No Enthalpy AND Full Collapse (Scalar Output)
-        #if self.enthalpy is None and self.keep_dims is None:
+        if self.enthalpy is None and self.keep_dims is None:
             # We assume children return Scalars (Batch, 1) or compatible shapes
             # We simply sum them up. 
             # This avoids O(D^N) tensor construction entirely.
-            #print("Ideal case detected. Implement later.")
-            # total_phi = child_outputs[0]
-            # for i in range(1, len(child_outputs)):
-            #     total_phi = total_phi + child_outputs[i]
-            # return total_phi
+            # print("Ideal case detected. Implement later.")
+            total_phi = child_outputs[0]
+            for i in range(1, len(child_outputs)):
+                total_phi = total_phi + child_outputs[i]
+            return total_phi
 
         # --- STANDARD PATH: Interacting Systems ---
         
         # 2. Build Energy Tensor (Outer Sum)
         # Combines children into orthogonal dimensions: (Batch, D1, D2...)
-        total_energy = F.build_energy_tensor(child_outputs)
-        
-        # 3. Add Interaction Enthalpy (Coupling)
-        if self.enthalpy is not None:
-            total_energy = total_energy + self.enthalpy
-            
+        # If self.enthalpy is None, build_energy_tensor handles it as Ideal Mixing.
+        total_energy = F.build_energy_tensor(child_outputs, self.enthalpy)
+                  
         # 4. Marginalize (SoftMin)
         if not child_outputs: return total_energy # Edge case: Pure enthalpy node
         
@@ -113,24 +110,25 @@ class MixingNode(nn.Module):
         # Determine collapse dimensions (1..N correspond to children)
         if self.keep_dims is None:
             dims_to_collapse = tuple(range(1, num_children + 1))
-            keep_flag = False
         else:
             all_dims = set(range(num_children))
             keep_set = set(self.keep_dims)
             # Map logical index (0..N-1) to tensor index (1..N)
             dims_to_collapse = tuple(d + 1 for d in (all_dims - keep_set))
-            keep_flag = False
 
         if not dims_to_collapse:
-            return total_energy
+            # Flatten to (Batch, D_total) to maintain (Batch, D) contract
+            return total_energy.view(total_energy.shape[0], -1)
 
-        return F.softmin_energy(
+        result = F.softmin_energy(
             total_energy, 
             dim=dims_to_collapse, 
             temperature=temperature, 
-            k_b=self.k_b,
-            keepdim=keep_flag
+            k_b=self.k_b
         )
+        
+        # Enforce (Batch, D) shape contract for scalars and vectors
+        return result.view(result.shape[0], -1)
 
 class StackNode(nn.Module):
     """

@@ -16,82 +16,42 @@ def build_energy_tensor(phi_vectors, interaction_tensor=None):
             or (Batch, D_1, ..., D_N) for context-dependent interactions.
 
     Returns:
-        torch.Tensor: The combined energy tensor of shape (Batch, D_1, D_2, ..., D_N).
-            Represents E_total = phi_1 + phi_2 + ... + phi_n + Omega
+        torch.Tensor: E_total = phi_1 + ... + phi_n + Omega
     """
     
-    # 1. Validation
-    if not phi_vectors:
-        raise ValueError("phi_vectors list cannot be empty")
-    
-    batch_size = phi_vectors[0].shape[0]
     num_children = len(phi_vectors)
     
-    # 1b. Normalize Shapes: Ensure all vectors are at least (Batch, D)
-    # If a vector is (Batch,), treat it as (Batch, 1).
-    #TODO: Ensure this is efficient!
-    normalized_phis = []
-    for i, v in enumerate(phi_vectors):
-        if v.dim() == 1:
-            # Check consistency (optional but good practice)
-            if v.shape[0] != batch_size:
-                 raise ValueError(f"Batch dimension mismatch at index {i}. Expected {batch_size}, got {v.shape[0]}")
-            normalized_phis.append(v.view(-1, 1))
-        else:
-            normalized_phis.append(v)
-            
-    phi_vectors = normalized_phis
+    # Pre-calculate base shape: [Batch, 1, 1, ..., 1]
+    base_shape = [-1] + [1] * num_children
 
-    # Collect state dimensions (D_1, D_2, ...)
-    # Each vec is (Batch, D_i), so we take dim 1
-    state_dims = [v.shape[1] for v in phi_vectors]
-    
-    # 2. Reshape for Broadcasting (The "Outer Sum" Setup)
-    # We want to transform vectors into shapes:
-    # Vec 1: (Batch, D_1, 1,   1,   ...)
-    # Vec 2: (Batch, 1,   D_2, 1,   ...)
-    # Vec 3: (Batch, 1,   1,   D_3, ...)
-    
-    reshaped_phis = []
-    for i, phi in enumerate(phi_vectors):
-        # Verify batch size consistency
-        if phi.shape[0] != batch_size:
-            raise ValueError(f"Batch dimension mismatch at index {i}. Expected {batch_size}, got {phi.shape[0]}")
-            
-        # Create view shape: [Batch] + [1, 1, ...]
-        view_shape = [batch_size] + [1] * num_children
-        # Set the target dimension to D_i
-        view_shape[i + 1] = state_dims[i]
+    # 1. Initialize Base Energy
+    if interaction_tensor is None:
+        # Ideal Mixing Optimization: Start with the first vector
+        # This avoids allocating a massive Zeros tensor.
+        start_index = 1
         
-        reshaped_phis.append(phi.view(*view_shape))
-
-    # 3. Compute Non-Interacting Energy (Ideal Mixing)
-    # Start with the first vector
-    total_energy = reshaped_phis[0]
+        first_shape = list(base_shape)
+        first_shape[1] = phi_vectors[0].shape[1] # Set D_1
+        total_energy = phi_vectors[0].view(*first_shape)
+    else:
+        # Interaction Case: Start with the Enthalpy Matrix
+        start_index = 0
+        total_energy = interaction_tensor
     
-    # Add the rest (Broadcasting handles the expansion)
-    for i in range(1, num_children):
-        total_energy = total_energy + reshaped_phis[i]
-
-    # 4. Add Enthalpic Coupling (Interaction)
-    if interaction_tensor is not None:
-        # Interaction tensor is added to the ideal mixing background.
-        # PyTorch broadcasting handles cases where interaction_tensor 
-        # is (D1, D2...) (shared across batch) or (Batch, D1, D2...)
+    # 2. Add Remaining Potential Vectors
+    for i in range(start_index, num_children):
+        phi = phi_vectors[i]
         
-        # Sanity check for non-batched interaction tensor dimensions
-        if interaction_tensor.dim() == num_children:
-             # If interaction is static (no batch dim), ensure dims match
-            if list(interaction_tensor.shape) != state_dims:
-                 # It might be broadcastable (e.g. 1s in shape), so we warn/check carefully
-                 pass 
+        shape = list(base_shape)
+        shape[i + 1] = phi.shape[1] # Set dimension D_i
         
-        total_energy = total_energy + interaction_tensor
+        # In-place addition (+=) is faster and saves memory
+        total_energy = total_energy + phi.view(*shape)
 
     return total_energy
 
 
-def softmin_energy(energy_tensor, dim=None, temperature=293.15, k_b=DEFAULT_KB, keepdim=False):
+def softmin_energy(energy_tensor, dim=None, temperature=293.15, k_b=DEFAULT_KB):
     """
     Computes the Free Energy (Phi) by marginalizing out specific dimensions 
     of an Energy Tensor using the SoftMin operator.
@@ -108,8 +68,6 @@ def softmin_energy(energy_tensor, dim=None, temperature=293.15, k_b=DEFAULT_KB, 
             - If float: Applied globally.
             - If Tensor: Must be broadcastable to (Batch,).
         k_b (float): Boltzmann constant (default eV/K).
-        keepdim (bool): Whether to retain the collapsed dimensions as size 1.
-            Default is False (standard marginalization).
 
     Returns:
         torch.Tensor: The effective potential / Free Energy.
@@ -134,7 +92,7 @@ def softmin_energy(energy_tensor, dim=None, temperature=293.15, k_b=DEFAULT_KB, 
     # We compute 1/beta * log( sum( exp( -E * beta ) ) )
     beta = 1.0 / (k_b * T)
     scaled_energy = -energy_tensor * beta
-    log_z = logsumexp(scaled_energy, dim=dim_to_collapse, keepdim=keepdim)
+    log_z = logsumexp(scaled_energy, dim=dim_to_collapse, keepdim=False)
     free_energy = -log_z / beta     # broadcasts correctly if T is a tensor.
     
     return free_energy
