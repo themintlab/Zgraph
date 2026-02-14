@@ -60,22 +60,24 @@ class MixingNode(nn.Module):
         self.sub_nodes = nn.ModuleList(sub_nodes)
 
         # --- Enthalpy Initialization ---
+        
         if enthalpy is None:
             self.enthalpy = None # Flag for Ideal Mixing Shortcut
-        elif isinstance(enthalpy, (tuple, list)):
-            # Learn from scratch (Initialize to 0)
-            self.enthalpy = nn.Parameter(torch.zeros(*enthalpy))
-        elif isinstance(enthalpy, torch.Tensor):
-            # Physics-Informed (Clone provided tensor)
-            self.enthalpy = nn.Parameter(enthalpy.clone())
-        elif isinstance(enthalpy, (int, float)):
-             # Scalar offset (Learnable or Fixed)
-             self.enthalpy = nn.Parameter(torch.tensor(float(enthalpy)))
         else:
-            raise ValueError("Interaction must be None, tuple (shape), Tensor, or scalar.")
+            if isinstance(enthalpy, (tuple, list)):
+                # Learn from scratch (Initialize to 0)
+                enthalpy_tensor = torch.zeros(*enthalpy)
+            elif isinstance(enthalpy, (int, float)):
+                # Scalar offset
+                enthalpy_tensor = torch.tensor(float(enthalpy))
+            elif isinstance(enthalpy, torch.Tensor):
+                # Physics-Informed (Clone provided tensor)
+                enthalpy_tensor = enthalpy.clone()
+            else:
+                raise ValueError("Enthalpy must be None, tuple (shape), Tensor, or scalar.")
 
-        # --- Freeze/Thaw Physics ---
-        if self.enthalpy is not None:
+            # Create Parameter and set trainability
+            self.enthalpy = nn.Parameter(enthalpy_tensor)
             self.enthalpy.requires_grad = trainable
 
     def forward(self, inputs, temperature=293.15):
@@ -106,33 +108,28 @@ class MixingNode(nn.Module):
         # If self.enthalpy is None, build_energy_tensor handles it as Ideal Mixing.
         total_energy = F.build_energy_tensor(child_outputs, self.enthalpy)
                   
-        # 4. Marginalize (SoftMin)
-        if not child_outputs: return total_energy # Edge case: Pure enthalpy node
         
-        num_children = len(child_outputs)
+        # num_children = len(child_outputs)
         
-        # Determine collapse dimensions (1..N correspond to children)
-        if self.keep_dims is None:
-            dims_to_collapse = tuple(range(1, num_children + 1))
-        else:
-            all_dims = set(range(num_children))
-            keep_set = set(self.keep_dims)
-            # Map logical index (0..N-1) to tensor index (1..N)
-            dims_to_collapse = tuple(d + 1 for d in (all_dims - keep_set))
+        # # Determine collapse dimensions (1..N correspond to children)
+        # if self.keep_dims is None:
+        #     dims_to_collapse = tuple(range(1, num_children + 1))
+        # else:
+        #     all_dims = set(range(num_children))
+        #     keep_set = set(self.keep_dims)
+        #     # Map logical index (0..N-1) to tensor index (1..N)
+        #     dims_to_collapse = tuple(d + 1 for d in (all_dims - keep_set))
 
-        if not dims_to_collapse:
-            # Flatten to (Batch, D_total) to maintain (Batch, D) contract
-            return total_energy.view(total_energy.shape[0], -1)
+        # if not dims_to_collapse:
+        #     # Flatten to (Batch, D_total) to maintain (Batch, D) contract
+        #     return total_energy.view(total_energy.shape[0], -1)
 
-        result = F.softmin_energy(
+        return F.softmin_energy(
             total_energy, 
             dim=dims_to_collapse, 
             temperature=temperature, 
             k_b=self.k_b
         )
-        
-        # Enforce (Batch, D) shape contract for scalars and vectors
-        return result.view(result.shape[0], -1)
 
 class StackNode(nn.Module):
     """
@@ -149,8 +146,3 @@ class StackNode(nn.Module):
         
         # Concatenate along the last dimension to make a vector: (Batch, N_species)
         return torch.cat(scalars, dim=-1)
-
-# ***
-# Source nodes integrate reference potentials directly or as enthalpic contributions after? 
-# Mixing nodes / enthalpic interaction tensor. 
-# **
