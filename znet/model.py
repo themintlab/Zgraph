@@ -32,9 +32,6 @@ class ZNet(nn.Module):
 
         # 3. Fast Path (Standard Training)
         output = self.root_node(inputs, temperature)
-
-        # 3. Fast Path (Standard Training)
-        output = self.root_node(inputs, temperature)
         
         # Auto-Mix: If the output implies unmixed states (vector/tensor), 
         # collapse them to a scalar Free Energy.
@@ -44,10 +41,6 @@ class ZNet(nn.Module):
             
         return output
     
-
-
-
-
     def _convert_inputs(self, raw_inputs, temperature):
         """Internal helper to sanitize inputs on the fly."""
         try:  
@@ -64,3 +57,31 @@ class ZNet(nn.Module):
             clean_inputs[k] = t
         #return self.root_node(clean_inputs, temperature)
         return self.forward(clean_inputs, temperature)
+
+    def to_Helmholtz(self, inputs):
+        """Converts an Energy Tensor to a Helmholtz Free Energy via the Legendre Transform."""
+        inputs_grad = {
+            k: v.clone().detach().requires_grad_(True) 
+            for k, v in inputs.items()
+        }
+
+        # 2. Forward Pass: Calculate Grand Potential (Omega)
+        Omega = self.forward(inputs_grad)
+
+        # 3. Calculate Conjugate Variables (Particle Numbers N)
+        # Thermodynamics: N_i = - d(Omega) / d(mu_i)
+        # usage of torch.autograd.grad handles the differentiation
+        # sum() is needed because .grad() only works on scalar outputs
+        grads = torch.autograd.grad(
+            outputs=Omega.sum(), 
+            inputs=list(inputs_grad.values()), 
+            create_graph=False
+        )
+        # Map gradients back to their keys ('mu_A', 'mu_B')
+        N_counts = {k: -g for k, g in zip(inputs_grad.keys(), grads)}
+        # 4. Perform Legendre Transform
+        # F = Omega + sum(mu_i * N_i)
+        diff_terms = sum(inputs_grad[k] * N_counts[k] for k in inputs_grad)
+        Helmholtz_F = Omega + diff_terms
+        
+        return Helmholtz_F, N_counts

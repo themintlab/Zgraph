@@ -35,7 +35,8 @@ class MixingNode(nn.Module):
     """
     def __init__(self, 
                  sub_nodes, 
-                 enthalpy=None, 
+                 enthalpy=None,
+                 scale = 1,  
                  trainable=False, 
                  keep_dims=None, 
                  k_b=DEFAULT_KB):
@@ -50,6 +51,7 @@ class MixingNode(nn.Module):
             keep_dims (tuple): Dimensions to preserve. None = Full Collapse.
         """
         super().__init__()
+        self.scale = scale
         self.k_b = k_b
         self.keep_dims = keep_dims
         
@@ -80,11 +82,49 @@ class MixingNode(nn.Module):
             self.enthalpy = nn.Parameter(enthalpy_tensor)
             self.enthalpy.requires_grad = trainable
 
-    def forward(self, inputs, temperature=293.15):
+
+
+    def forward(self, inputs, dims_to_collapse=None, temperature=293.15):
         # 1. Gather Inputs (Recursive)
         child_outputs = [mod(inputs, temperature) for mod in self.sub_nodes]
 
-        
+        # Optimization: SoftMin(A + B) = SoftMin(A) + SoftMin(B)
+        # Calculates Free Energy for independent subsystems (Independent = Ideality)
+        beta = -self.k_b * temperature * self.scale
+
+        energy = F.build_energy_tensor(child_outputs, self.enthalpy)
+        total_energy = F.softmin_energy(
+            energy, 
+            beta = beta,
+        )
+
+        return total_energy.unsqueeze(-1)
+
+        # Shortcut giving different result. Not sure why. 
+        # system is summing correctly, but the softmin is too soft. 
+
+        if self.enthalpy is None:
+            print("Ideal Mixing Shortcut Activated")
+            omegas = [F.scaled_logsumexp(child, dim=1, beta=beta) for child in child_outputs]
+            
+            # Collapse A (dim 1) -> Scalar [Batch]. Sum them up.
+            print("Omegas:", omegas)
+            total_energy = sum(omegas)
+        else:
+            # 2. Build Energy Tensor (Outer Sum)
+            # Combines children into orthogonal dimensions: (Batch, D1, D2...)
+            # If self.enthalpy is None, build_energy_tensor handles it as Ideal Mixing.
+            energy = F.build_energy_tensor(child_outputs, self.enthalpy)
+            total_energy = F.softmin_energy(
+                energy, 
+                dim=dims_to_collapse, 
+                temperature=temperature, 
+                k_b=self.k_b
+            )
+        # Ensure output is (Batch, 1) for compatibility with parents
+        return total_energy.unsqueeze(-1)
+
+
         # --- SHORTCUT: Ideal Mixing Optimization ---
         # Condition: No Enthalpy AND Full Collapse (Scalar Output) 
         ## Also ensure all children are scalars (dimension 1), otherwise we need to marginalize.
@@ -106,9 +146,15 @@ class MixingNode(nn.Module):
         # 2. Build Energy Tensor (Outer Sum)
         # Combines children into orthogonal dimensions: (Batch, D1, D2...)
         # If self.enthalpy is None, build_energy_tensor handles it as Ideal Mixing.
-        total_energy = F.build_energy_tensor(child_outputs, self.enthalpy)
+        # energy = F.build_energy_tensor(child_outputs, self.enthalpy)
                   
-        
+        # total_energy = F.softmin_energy(
+        #     energy, 
+        #     dim=dims_to_collapse, 
+        #     temperature=temperature, 
+        #     k_b=self.k_b
+        # )
+
         # num_children = len(child_outputs)
         
         # # Determine collapse dimensions (1..N correspond to children)
@@ -122,14 +168,7 @@ class MixingNode(nn.Module):
 
         # if not dims_to_collapse:
         #     # Flatten to (Batch, D_total) to maintain (Batch, D) contract
-        #     return total_energy.view(total_energy.shape[0], -1)
-
-        return F.softmin_energy(
-            total_energy, 
-            dim=dims_to_collapse, 
-            temperature=temperature, 
-            k_b=self.k_b
-        )
+        # return total_energy.view(total_energy.shape[0], -1)
 
 class StackNode(nn.Module):
     """
@@ -142,7 +181,7 @@ class StackNode(nn.Module):
         
     def forward(self, inputs, temperature = 293.15):
         # Gather all scalar potentials: [ (Batch, 1), (Batch, 1), ... ]
-        scalars = [child(inputs, temperature) for child in self.sub_nodes]
+        scalars = [child(inputs, temperature=temperature) for child in self.sub_nodes]
         
         # Concatenate along the last dimension to make a vector: (Batch, N_species)
         return torch.cat(scalars, dim=-1)

@@ -51,7 +51,7 @@ def build_energy_tensor(phi_vectors, interaction_tensor=None):
     return total_energy
 
 
-def softmin_energy(energy_tensor, dim=None, temperature=293.15, k_b=DEFAULT_KB):
+def softmin_energy(energy_tensor, dim=None, beta=1):
     """
     Computes the Free Energy (Phi) by marginalizing out specific dimensions 
     of an Energy Tensor using the SoftMin operator.
@@ -64,10 +64,6 @@ def softmin_energy(energy_tensor, dim=None, temperature=293.15, k_b=DEFAULT_KB):
         dim (int or tuple of ints, optional): The dimension(s) to collapse/integrate out.
             Example: (1, 2) collapses the first two sublattices. If None, all dimensions
             except the batch dimension (dim 0) will be collapsed.
-        temperature (float or torch.Tensor): System temperature.
-            - If float: Applied globally.
-            - If Tensor: Must be broadcastable to (Batch,).
-        k_b (float): Boltzmann constant (default eV/K).
 
     Returns:
         torch.Tensor: The effective potential / Free Energy.
@@ -80,19 +76,25 @@ def softmin_energy(energy_tensor, dim=None, temperature=293.15, k_b=DEFAULT_KB):
         dim_to_collapse = dim
 
     # Temperature Broadcasting: if T is a tensor (e.g., shape (Batch,)), we need to align it with energy_tensor
-    if isinstance(temperature, Tensor):
-        # Create a view that adds singleton dimensions for every dim in energy_tensor
-        # except the batch dim (0).
-        # Example: T(Batch) -> T(Batch, 1, 1, ...)
-        view_shape = [temperature.shape[0]] + [1] * (energy_tensor.dim() - 1)
-        T = temperature.view(*view_shape)
-    else:
-        T = temperature
+    # if isinstance(temperature, Tensor):
+    #     # Create a view that adds singleton dimensions for every dim in energy_tensor
+    #     # except the batch dim (0).
+    #     # Example: T(Batch) -> T(Batch, 1, 1, ...)
+    #     view_shape = [temperature.shape[0]] + [1] * (energy_tensor.dim() - 1)
+    #     T = temperature.view(*view_shape)
+    # else:
+    #     T = temperature
 
     # We compute 1/beta * log( sum( exp( -E * beta ) ) )
-    beta = 1.0 / (k_b * T)
-    scaled_energy = -energy_tensor * beta
-    log_z = logsumexp(scaled_energy, dim=dim_to_collapse, keepdim=False)
-    free_energy = -log_z / beta     # broadcasts correctly if T is a tensor.
-    
-    return free_energy
+    # beta = -k_b * T
+    return scaled_logsumexp(energy_tensor, dim=dim_to_collapse, beta=beta)
+
+def scaled_logsumexp(energy, dim, beta=1):
+    """
+    Computes beta * log( sum( exp( energy / beta ) ) ).
+    """
+    # Use torch.logsumexp explicitly if import is shadowed, 
+    # Add keep dims to do a full overload of torch.logsumexp?
+    # but here we renamed the function so 'logsumexp' refers to the import at the top.
+
+    return beta * logsumexp(energy / beta, dim=dim)
