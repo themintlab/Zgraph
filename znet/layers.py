@@ -38,7 +38,6 @@ class MixingNode(nn.Module):
                  enthalpy=None,
                  scale = 1,  
                  trainable=False, 
-                 keep_dims=None, 
                  k_b=DEFAULT_KB):
         """
         Args:
@@ -48,12 +47,10 @@ class MixingNode(nn.Module):
                 - Tensor: Fixed/Initial Enthalpy Matrix.
                 - Tuple: Shape of Enthalpy Matrix to learn from scratch.
             trainable (bool): If True, enthalpy is a learnable parameter.
-            keep_dims (tuple): Dimensions to preserve. None = Full Collapse.
         """
         super().__init__()
         self.scale = scale
         self.k_b = k_b
-        self.keep_dims = keep_dims
         
         # Ensure sub_nodes is always a list, even if a single node is provided
         if not isinstance(sub_nodes, (list, tuple)):
@@ -84,7 +81,7 @@ class MixingNode(nn.Module):
 
 
 
-    def forward(self, inputs, dims_to_collapse=None, temperature=293.15):
+    def forward(self, inputs, temperature=293.15):
         # 1. Gather Inputs (Recursive)
         child_outputs = [mod(inputs, temperature) for mod in self.sub_nodes]
 
@@ -103,26 +100,26 @@ class MixingNode(nn.Module):
         # Shortcut giving different result. Not sure why. 
         # system is summing correctly, but the softmin is too soft. 
 
-        if self.enthalpy is None:
-            print("Ideal Mixing Shortcut Activated")
-            omegas = [F.scaled_logsumexp(child, dim=1, beta=beta) for child in child_outputs]
+        # if self.enthalpy is None:
+        #     print("Ideal Mixing Shortcut Activated")
+        #     omegas = [F.scaled_logsumexp(child, dim=1, beta=beta) for child in child_outputs]
             
-            # Collapse A (dim 1) -> Scalar [Batch]. Sum them up.
-            print("Omegas:", omegas)
-            total_energy = sum(omegas)
-        else:
-            # 2. Build Energy Tensor (Outer Sum)
-            # Combines children into orthogonal dimensions: (Batch, D1, D2...)
-            # If self.enthalpy is None, build_energy_tensor handles it as Ideal Mixing.
-            energy = F.build_energy_tensor(child_outputs, self.enthalpy)
-            total_energy = F.softmin_energy(
-                energy, 
-                dim=dims_to_collapse, 
-                temperature=temperature, 
-                k_b=self.k_b
-            )
-        # Ensure output is (Batch, 1) for compatibility with parents
-        return total_energy.unsqueeze(-1)
+        #     # Collapse A (dim 1) -> Scalar [Batch]. Sum them up.
+        #     print("Omegas:", omegas)
+        #     total_energy = sum(omegas)
+        # else:
+        #     # 2. Build Energy Tensor (Outer Sum)
+        #     # Combines children into orthogonal dimensions: (Batch, D1, D2...)
+        #     # If self.enthalpy is None, build_energy_tensor handles it as Ideal Mixing.
+        #     energy = F.build_energy_tensor(child_outputs, self.enthalpy)
+        #     total_energy = F.softmin_energy(
+        #         energy, 
+        #         dim=dims_to_collapse, 
+        #         temperature=temperature, 
+        #         k_b=self.k_b
+        #     )
+        # # Ensure output is (Batch, 1) for compatibility with parents
+        # return total_energy.unsqueeze(-1)
 
 
         # --- SHORTCUT: Ideal Mixing Optimization ---
