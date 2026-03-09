@@ -5,7 +5,7 @@ from . import functional as F
 from .constants import DEFAULT_KB
 
 class SourceNode(nn.Module):
-    def __init__(self, key):
+    def __init__(self, key, index = None):
         """
         Leaf node: Retreives a potential from inputs and adds a reference energy.
         
@@ -17,12 +17,26 @@ class SourceNode(nn.Module):
         """
         super().__init__()
         self.key = key
+        self.index = index
+    
+    def bind_to_bus(self, global_registry):
+        """Called during the compile step to lock in the routing."""
+        if self.key not in global_registry:
+            raise ValueError(f"Species '{self.key}' not found in registry.")
+        self.index = global_registry[self.key]
 
-    #TODO: Note negative has been added to reflect application of chemical potential. Fix when adding reference potential?
-    def forward(self, inputs, temperature=293.15):
-        if self.key not in inputs:
-             raise KeyError(f"SourceNode '{self.key}' input missing.")
-        return -inputs[self.key]
+    def forward(self, global_state_tensor, temperature = 293.15):
+        if self.index is None:
+            raise RuntimeError("Graph was not compiled! Call .compile() on the root node.")
+        
+        # Fast, zero-copy routing
+        return -global_state_tensor[..., self.index : self.index + 1]
+    
+    # def forward(self, inputs, temperature=293.15):
+    #     # if self.key not in inputs:
+    #     #      raise KeyError(f"SourceNode '{self.key}' input missing.")
+        
+    #     return -inputs[self.key]
         
     def __repr__(self):
         return f"SourceNode('{self.key}')"

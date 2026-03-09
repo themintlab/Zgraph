@@ -56,23 +56,56 @@ class MixingNode(nn.Module):
             self.enthalpy = nn.Parameter(enthalpy_tensor)
             self.enthalpy.requires_grad = trainable
 
-
-
     def forward(self, inputs, temperature=293.15):
         # 1. Gather Inputs (Recursive)
         child_outputs = [mod(inputs, temperature) for mod in self.sub_nodes]
+        num_subs = len(child_outputs)
 
-        # Optimization: SoftMin(A + B) = SoftMin(A) + SoftMin(B)
-        # Calculates Free Energy for independent subsystems (Independent = Ideality)
-        beta = -self.k_b * temperature * self.scale
+        # 2. Dynamic right-alignment - Builds grid for broadcasting
+        aligned_tensors = []
+        for i, tensor in enumerate(child_outputs):
+            batch_shape = tensor.shape[:-1]
+            D_i = tensor.shape[-1]
+            
+            # Create the trailing grid: [1, 1, ..., 1]
+            trailing_shape = [1] * num_subs
+            trailing_shape[i] = D_i # Slot this sublattice into its unique dimension
+            
+            # target_shape: (*Batch, 1, D_i, 1)
+            target_shape = list(batch_shape) + trailing_shape
+            aligned_tensors.append(tensor.view(*target_shape))
+        
+        # 3. Build the Grid (Pure broadcasting addition)
+        # Result shape: (*Batch, D_0, D_1, ..., D_N)
+        grid = aligned_tensors[0]
+        for t in aligned_tensors[1:]:
+            grid = grid + t
+        
 
-        energy = F.build_energy_tensor(child_outputs, self.enthalpy)
-        total_energy = F.softmin_energy(
-            energy, 
-            beta = beta,
-        )
+        # 5. Collapse the Interaction Dimensions via LogSumExp
+        # We want to collapse the exact number of sublattices we added to the right side
+        dims_to_collapse = tuple(range(-num_subs, 0))
 
-        return total_energy.unsqueeze(-1)
+        phi = torch.logsumexp(grid, dim=dims_to_collapse)
+
+        # Return as (*Batch, 1) to maintain the scalar potential format 
+        # so it can be fed into a SystemNode (Competition)
+        return phi.unsqueeze(-1)
+        
+        # # Optimization: SoftMin(A + B) = SoftMin(A) + SoftMin(B)
+        # # Calculates Free Energy for independent subsystems (Independent = Ideality)
+        # beta = -self.k_b * temperature * self.scale
+
+
+
+
+        # energy = F.build_energy_tensor(child_outputs, self.enthalpy)
+        # total_energy = F.softmin_energy(
+        #     energy, 
+        #     beta = beta,
+        # )
+
+        # return total_energy.unsqueeze(-1)
 
         # Shortcut giving different result. Not sure why. 
         # system is summing correctly, but the softmin is too soft. 
