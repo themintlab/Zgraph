@@ -60,7 +60,7 @@ class ConstantNode(ThermoAlgebra, nn.Module):
 
         # Create Parameter and set trainability
         self.value = nn.Parameter(value_tensor)
-        self.register_buffer("_value_tensor", torch.tensor(float(value)))
+        self.register_buffer("_value_tensor", value_tensor.detach().clone())
         #self.value.requires_grad = trainable
 
         # Keep a tensor-backed constant on the module so it is initialized once.
