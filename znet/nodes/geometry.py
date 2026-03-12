@@ -48,11 +48,15 @@ class MixingNode(ThermoAlgebra, nn.Module):
     def forward(self, inputs, temperature=293.15):
         # 1. Gather Inputs (Recursive)
         child_outputs = [mod(inputs, temperature) for mod in self.sub_nodes]
+        if not child_outputs:
+            raise ValueError("MixingNode requires at least one sub-node.")
         num_subs = len(child_outputs)
 
         # Shortcut for no enthalpy: logsumexp(A + B) = logsumexp(A) + logsumexp(B)
         if self.enthalpy is None:
-            phi = sum(torch.logsumexp(child, dim=-1) for child in child_outputs)
+            #            phi = sum(torch.logsumexp(child, dim=-1) for child in child_outputs)
+            reduced_children = [torch.logsumexp(child, dim=-1) for child in child_outputs]
+            phi = torch.stack(reduced_children, dim=0).sum(dim=0)
             # return phi.unsqueeze(-1)
         # Build the Grid via broadcasting
         # Reshape each tensor to broadcast across its designated sublattice dimension
