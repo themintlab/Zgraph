@@ -1,12 +1,7 @@
 import torch
 import torch.nn as nn
-from . import functional as F
+#from . import functional as F
 from .constants import DEFAULT_KB
-
-
-
-
-
 
 
 class ZNet(nn.Module):
@@ -42,8 +37,8 @@ class ZNet(nn.Module):
         # Auto-Mix: If the output implies unmixed states (vector/tensor), 
         # collapse them to a scalar Free Energy.
         # Check if we have more dimensions than (Batch, 1) or if the last dim > 1.
-        if output.ndim > 2 or (output.ndim == 2 and output.shape[1] > 1):
-            output = F.softmin_energy(output, temperature=temperature, k_b=DEFAULT_KB)
+        # if output.ndim > 2 or (output.ndim == 2 and output.shape[1] > 1):
+        #     output = F.softmin_energy(output, temperature=temperature, k_b=DEFAULT_KB)
             
         return output
     

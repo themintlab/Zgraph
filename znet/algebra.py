@@ -45,25 +45,3 @@ class ThermoAlgebra:
 
         # Build a new node to preserve functional-style DSL behavior.
         return MixingNode(list(base.sub_nodes), enthalpy=enthalpy, scale=base.scale)
-
-# class ThermoAlgebra:
-#     """Enables the syntax: Fe | Ni, SiteA + SiteB, Phase @ Matrix"""
-#     def __or__(self, other):
-#         left = self.children if isinstance(self, StackNode) else [self]
-#         right = other.children if isinstance(other, StackNode) else [other]
-#         return StackNode(left + right)
-
-#     def __add__(self, other):
-#         left = self.sublattices if (isinstance(self, MixingNode) and self.enthalpy is None) else [self]
-#         right = other.sublattices if (isinstance(other, MixingNode) and other.enthalpy is None) else [other]
-#         return MixingNode(left + right)
-
-#     def __matmul__(self, interaction):
-#         if not isinstance(self, MixingNode):
-#             raise TypeError("Can only apply Enthalpy (@) to a MixingNode.")
-#         new_node = copy.copy(self)
-#         if isinstance(interaction, torch.Tensor):
-#             new_node.enthalpy = nn.Parameter(interaction.clone())
-#         else:
-#             new_node.enthalpy = nn.Parameter(torch.zeros(*interaction))
-#         return new_node

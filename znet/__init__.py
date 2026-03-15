@@ -1,6 +1,8 @@
 from .nodes import SourceNode, StackNode, ConstantNode, MixingNode
 from .model import ZNet
-from .functional import build_energy_tensor
+from .core.calculus import compute_derivatives
+from .core.io import bind_graph_to_bus
+from .utils.packers import build_input_tensor
 from .constants import DEFAULT_KB
 
 __all__ = [
@@ -9,6 +11,8 @@ __all__ = [
     "MixingNode",
     "StackNode",
     "ConstantNode", 
-    "build_energy_tensor",
+    "compute_derivatives",
+    "bind_graph_to_bus",
+    "build_input_tensor",
     "DEFAULT_KB",
 ]

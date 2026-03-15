@@ -24,7 +24,7 @@ class SourceNode(ThermoAlgebra, nn.Module):
             raise ValueError(f"Species '{self.key}' not found in registry.")
         self.index = global_registry[self.key]
 
-    def forward(self, global_state_tensor, temperature = 293.15):
+    def forward(self, global_state_tensor):
         if self.index is None:
             raise RuntimeError("Graph was not compiled! Call .compile() on the root node.")
         
@@ -66,7 +66,7 @@ class ConstantNode(ThermoAlgebra, nn.Module):
         # Keep a tensor-backed constant on the module so it is initialized once.
         
     
-    def forward(self, inputs, temperature=293.15):
+    def forward(self, inputs):
         return self.value
         
     def __repr__(self):

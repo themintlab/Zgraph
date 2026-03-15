@@ -11,9 +11,9 @@ class StackNode(ThermoAlgebra, nn.Module):
         super().__init__()
         self.sub_nodes = nn.ModuleList(sub_nodes)
         
-    def forward(self, inputs, temperature = 293.15):
+    def forward(self, inputs):
         # Gather all scalar potentials: [ (Batch, 1), (Batch, 1), ... ]
-        scalars = [child(inputs, temperature=temperature) for child in self.sub_nodes]
+        scalars = [child(inputs) for child in self.sub_nodes]
         
         # Concatenate along the last dimension to make a vector: (Batch, N_species)
         return torch.cat(scalars, dim=-1)
@@ -45,22 +45,20 @@ class MixingNode(ThermoAlgebra, nn.Module):
         
         self.sub_nodes = nn.ModuleList(sub_nodes)        
 
-    def forward(self, inputs, temperature=293.15):
+    def forward(self, inputs):
         # 1. Gather Inputs (Recursive)
-        child_outputs = [mod(inputs, temperature) for mod in self.sub_nodes]
+        child_outputs = [mod(inputs) for mod in self.sub_nodes]
         if not child_outputs:
             raise ValueError("MixingNode requires at least one sub-node.")
         num_subs = len(child_outputs)
 
-        # Shortcut for no enthalpy: logsumexp(A + B) = logsumexp(A) + logsumexp(B)
+
         if self.enthalpy is None:
-            #            phi = sum(torch.logsumexp(child, dim=-1) for child in child_outputs)
+            # Shortcut for no enthalpy: logsumexp(A + B) = logsumexp(A) + logsumexp(B)
             reduced_children = [torch.logsumexp(child, dim=-1) for child in child_outputs]
             phi = torch.stack(reduced_children, dim=0).sum(dim=0)
-            # return phi.unsqueeze(-1)
-        # Build the Grid via broadcasting
-        # Reshape each tensor to broadcast across its designated sublattice dimension
         else: 
+            # Apply enthalpy to the built grid
             aligned_tensors = [
                 t.view(*t.shape[:-1], *[1]*i, t.shape[-1], *[1]*(num_subs - i - 1))
                 for i, t in enumerate(child_outputs)
@@ -68,7 +66,7 @@ class MixingNode(ThermoAlgebra, nn.Module):
             grid = sum(aligned_tensors)
             
             # Apply Enthalpy and Collapse
-            enthalpy = self.enthalpy(inputs, temperature)
+            enthalpy = self.enthalpy(inputs)
             phi = torch.logsumexp(grid + enthalpy, dim=tuple(range(-num_subs, 0)))
 
         # Return as (*Batch, 1) to maintain the scalar potential format 
