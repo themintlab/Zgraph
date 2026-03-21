@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from ..core import functional as F
 from ..algebra import ThermoAlgebra
 
 class StackNode(ThermoAlgebra, nn.Module):
@@ -43,66 +44,61 @@ class MixingNode(ThermoAlgebra, nn.Module):
         if not isinstance(sub_nodes, (list, tuple)):
             sub_nodes = [sub_nodes]
         
-        self.sub_nodes = nn.ModuleList(sub_nodes)        
+        self.sub_nodes = nn.ModuleList(sub_nodes)     
+        self.num_sub_nodes = len(sub_nodes)   
 
     def forward(self, inputs):
         # 1. Gather Inputs (Recursive)
         child_outputs = [mod(inputs) for mod in self.sub_nodes]
         if not child_outputs:
             raise ValueError("MixingNode requires at least one sub-node.")
-        num_subs = len(child_outputs)
-
 
         if self.enthalpy is None:
             # Shortcut for no enthalpy: logsumexp(A + B) = logsumexp(A) + logsumexp(B)
-            reduced_children = [torch.logsumexp(child, dim=-1) for child in child_outputs]
-            phi = torch.stack(reduced_children, dim=0).sum(dim=0)
+            #reduced_children = [torch.logsumexp(child, dim=-1) for child in child_outputs]
+            reduced_children = [F.collapse(child, 1) for child in child_outputs]
+            phi = torch.stack(reduced_children, dim=0).sum(dim=0).unsqueeze(-1)
         else: 
-            # Apply enthalpy to the built grid
-            aligned_tensors = [
-                t.view(*t.shape[:-1], *[1]*i, t.shape[-1], *[1]*(num_subs - i - 1))
-                for i, t in enumerate(child_outputs)
-            ]
-            grid = sum(aligned_tensors)
+            grid = F.outer_addition(child_outputs) 
             
             # Apply Enthalpy and Collapse
             enthalpy = self.enthalpy(inputs)
-            phi = torch.logsumexp(grid + enthalpy, dim=tuple(range(-num_subs, 0)))
+            phi = F.collapse(grid+enthalpy, self.num_sub_nodes) #= torch.logsumexp(grid + enthalpy, dim=tuple(range(-num_subs, 0)))
 
         # Return as (*Batch, 1) to maintain the scalar potential format 
         # so it can be fed into a SystemNode (Competition)
-        return phi.unsqueeze(-1)
+        return phi
+
+class CollapseNode(ThermoAlgebra, nn.Module):
+    """
+    The Universal Collapser (Renormalization Node).
+    It takes an internal structural graph (a Stack or a Mix) and traces it out.
+    """
+    def __init__(self, sub_node):
+                 #sub_nodes, scale = 1, ):
+        """
+        Args:
+            sub_nodes (list): List of sub-nodes.
+        """
+        super().__init__()
+        #self.scale = scale
+        # Ensure sub_nodes is always a list, even if a single node is provided
+        # if not isinstance(sub_nodes, (list, tuple)):
+        #     sub_nodes = [sub_nodes]
         
+        # #TODO: Check that sub_nodes are all nodes. 
 
+        # self.sub_nodes = nn.ModuleList(sub_nodes)    
+        self.sub_node = sub_node
 
+    def forward(self, inputs):
+        # child_outputs = [mod(inputs) for mod in self.sub_nodes]
+        # if not child_outputs:
+        #     raise ValueError("Collapse requires at least one sub-node.")
+        state_tensor = self.sub_node(inputs)
 
+        batch_rank = inputs.dim() - 1 
+        landscape_rank = state_tensor.dim()
+        num_state_dims = landscape_rank - batch_rank
 
-        # If enthalpy is applied, proceed to build grid and apply enthalpy. 
-        # # 2. Dynamic right-alignment - Builds grid for broadcasting
-        # aligned_tensors = []
-        # for i, tensor in enumerate(child_outputs):
-        #     batch_shape = tensor.shape[:-1]
-        #     D_i = tensor.shape[-1]
-            
-        #     # Create the trailing grid: [1, 1, ..., 1]
-        #     trailing_shape = [1] * num_subs
-        #     trailing_shape[i] = D_i # Slot this sublattice into its unique dimension
-            
-        #     # target_shape: (*Batch, 1, D_i, 1)
-        #     target_shape = list(batch_shape) + trailing_shape
-        #     aligned_tensors.append(tensor.view(*target_shape))
-        
-        # # 3. Build the Grid (Pure broadcasting addition)
-        # # Result shape: (*Batch, D_0, D_1, ..., D_N)
-        # grid = aligned_tensors[0]
-        # for t in aligned_tensors[1:]:
-        #     grid = grid + t
-        
-        # # 4. Apply Enthalpy (Scaling eV to Dimensionless)
-        # enthalpy = self.enthalpy(inputs, temperature) # Should be (Batch, 1) or compatible shape
-        # grid = grid + enthalpy
-
-        # # 5. Collapse the Interaction Dimensions via LogSumExp
-        # # We want to collapse the exact number of sublattices we added to the right side
-        # dims_to_collapse = tuple(range(-num_subs, 0))
-        # phi = torch.logsumexp(grid, dim=dims_to_collapse)
+        return F.collapse(state_tensor, num_state_dims)

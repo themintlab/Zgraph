@@ -1,4 +1,4 @@
-from .nodes import SourceNode, StackNode, ConstantNode, MixingNode
+from .nodes import SourceNode, StackNode, ConstantNode, MixingNode, CollapseNode
 from .model import ZNet
 from .core.calculus import compute_derivatives
 from .core.io import bind_graph_to_bus
@@ -11,6 +11,7 @@ __all__ = [
     "MixingNode",
     "StackNode",
     "ConstantNode", 
+    "CollapseNode",
     "compute_derivatives",
     "bind_graph_to_bus",
     "build_input_tensor",
