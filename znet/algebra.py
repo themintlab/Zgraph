@@ -45,3 +45,16 @@ class ThermoAlgebra:
 
         # Build a new node to preserve functional-style DSL behavior.
         return MixingNode(list(base.sub_nodes), enthalpy=enthalpy, scale=base.scale)
+
+
+class _CollapseBracket:
+    """Bracket helper so DSL can use _[expr] -> CollapseNode(expr)."""
+
+    def __getitem__(self, expr):
+        from .nodes.geometry import CollapseNode
+
+        return CollapseNode(expr)
+
+
+# Usage: _[muA | muB]
+_ = _CollapseBracket()

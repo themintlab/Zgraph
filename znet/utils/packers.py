@@ -10,16 +10,18 @@ def build_input_tensor(
 	*,
 	dtype: torch.dtype | None = None,
 	device: torch.device | str | None = None,
+	mode: str = "cartesian",
 	indexing: str = "ij",
 	flatten: bool = False,
 	requires_grad: bool = False,
 ):
 	"""
-	Build a graph input tensor from a ``{state: values}`` mapping.
+	Build a graph input tensor from a {state: values} mapping.
 
-	Each state's values are treated as a 1D axis in a Cartesian product grid.
+	By default, each state's values are treated as a 1D axis in a Cartesian
+	product grid. Optionally, mode="matched" zips states by index instead.
 	The final tensor's last dimension is the state/channel axis expected by
-	``SourceNode`` indexing.
+	SourceNode indexing.
 
 	Args:
 		state_values: Mapping of state name -> 1D values.
@@ -27,9 +29,11 @@ def build_input_tensor(
 			If omitted, insertion order from ``state_values`` is used.
 		dtype: Optional output dtype. If omitted, inferred from input tensors.
 		device: Optional output device. If omitted, inferred from input tensors.
-		indexing: Meshgrid indexing mode, usually ``"ij"``.
-		flatten: If True, returns shape ``(N_points, N_states)``.
-			Otherwise returns ``(*state_sizes, N_states)``.
+		mode: "cartesian" for full permutations, "matched" for index-wise pairing.
+		indexing: Meshgrid indexing mode, usually "ij".
+		flatten: If True, returns shape (N_points, N_states).
+			Otherwise returns (*state_sizes, N_states) in cartesian mode.
+			In matched mode, output is already (N_points, N_states).
 		requires_grad: If True, output tensor requires grad.
 
 	Returns:
@@ -39,6 +43,9 @@ def build_input_tensor(
 	"""
 	if not isinstance(state_values, Mapping) or not state_values:
 		raise ValueError("state_values must be a non-empty mapping of state -> values")
+
+	if mode not in {"grid", "matched"}:
+		raise ValueError("mode must be either 'grid' or 'matched'")
 
 	if state_order is None:
 		ordered_keys = list(state_values.keys())
@@ -80,6 +87,19 @@ def build_input_tensor(
 			inferred_dtype = torch.promote_types(inferred_dtype, vec.dtype)
 
 	vectors = [vec.to(device=inferred_device, dtype=inferred_dtype) for vec in vectors]
+
+	if mode == "matched":
+		lengths = [vec.numel() for vec in vectors]
+		if len(set(lengths)) != 1:
+			raise ValueError(
+				"matched mode requires all state vectors to have the same length. "
+				f"Got lengths: {lengths}"
+			)
+
+		packed = torch.stack(vectors, dim=-1)
+		if requires_grad:
+			packed.requires_grad_(True)
+		return packed, ordered_keys
 
 	grid_views = torch.meshgrid(*vectors, indexing=indexing)
 	out_shape = tuple(vec.numel() for vec in vectors) + (len(vectors),)

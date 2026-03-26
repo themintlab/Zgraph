@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import warnings
 from ..core import functional as F
 from ..algebra import ThermoAlgebra
 
@@ -38,6 +39,11 @@ class MixingNode(ThermoAlgebra, nn.Module):
         """
         super().__init__()
         self.scale = scale
+        if enthalpy is None:
+            warnings.warn(
+                "MixingNode initialized with enthalpy=None; Consider collapsing sub_nodes first.",
+                RuntimeWarning,
+            )
         self.enthalpy = enthalpy
         
         # Ensure sub_nodes is always a list, even if a single node is provided
@@ -53,28 +59,30 @@ class MixingNode(ThermoAlgebra, nn.Module):
         if not child_outputs:
             raise ValueError("MixingNode requires at least one sub-node.")
 
-        if self.enthalpy is None:
-            # Shortcut for no enthalpy: logsumexp(A + B) = logsumexp(A) + logsumexp(B)
-            #reduced_children = [torch.logsumexp(child, dim=-1) for child in child_outputs]
-            reduced_children = [F.collapse(child, 1) for child in child_outputs]
-            phi = torch.stack(reduced_children, dim=0).sum(dim=0).unsqueeze(-1)
-        else: 
-            grid = F.outer_addition(child_outputs) 
+        # if self.enthalpy is None:
+        #     # Shortcut for no enthalpy: logsumexp(A + B) = logsumexp(A) + logsumexp(B)
+        #     #reduced_children = [torch.logsumexp(child, dim=-1) for child in child_outputs]
+        #     reduced_children = [F.collapse(child, 1) for child in child_outputs]
+        #     phi = torch.stack(reduced_children, dim=0).sum(dim=0).unsqueeze(-1)
+        # else: 
+        grid = F.outer_addition(child_outputs) 
             
-            # Apply Enthalpy and Collapse
-            enthalpy = self.enthalpy(inputs)
-            phi = F.collapse(grid+enthalpy, self.num_sub_nodes) #= torch.logsumexp(grid + enthalpy, dim=tuple(range(-num_subs, 0)))
+        # Apply Enthalpy only when present.
+        if self.enthalpy is None:
+            return grid
+        return grid + self.enthalpy(inputs)
+        # #phi = F.collapse(grid+enthalpy, self.num_sub_nodes) #= torch.logsumexp(grid + enthalpy, dim=tuple(range(-num_subs, 0)))
 
-        # Return as (*Batch, 1) to maintain the scalar potential format 
-        # so it can be fed into a SystemNode (Competition)
-        return phi
+        # # Return as (*Batch, 1) to maintain the scalar potential format 
+        # # so it can be fed into a SystemNode (Competition)
+        # return phi
 
 class CollapseNode(ThermoAlgebra, nn.Module):
     """
     The Universal Collapser (Renormalization Node).
     It takes an internal structural graph (a Stack or a Mix) and traces it out.
     """
-    def __init__(self, sub_node):
+    def __init__(self, sub_node, scale = 1.0):
                  #sub_nodes, scale = 1, ):
         """
         Args:
@@ -90,6 +98,7 @@ class CollapseNode(ThermoAlgebra, nn.Module):
 
         # self.sub_nodes = nn.ModuleList(sub_nodes)    
         self.sub_node = sub_node
+        self.scale = scale
 
     def forward(self, inputs):
         # child_outputs = [mod(inputs) for mod in self.sub_nodes]
@@ -100,5 +109,4 @@ class CollapseNode(ThermoAlgebra, nn.Module):
         batch_rank = inputs.dim() - 1 
         landscape_rank = state_tensor.dim()
         num_state_dims = landscape_rank - batch_rank
-
-        return F.collapse(state_tensor, num_state_dims)
+        return F.collapse(state_tensor, num_state_dims, scale=self.scale)
