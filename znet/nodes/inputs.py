@@ -1,4 +1,3 @@
-# thermograph/layers.py
 import torch
 import torch.nn as nn
 from ..algebra import ThermoAlgebra
@@ -27,9 +26,8 @@ class SourceNode(ThermoAlgebra, nn.Module):
     def forward(self, global_state_tensor):
         if self.index is None:
             raise RuntimeError("Graph was not compiled! Call .compile() on the root node.")
-        
-        # Fast, zero-copy routing
-        return -global_state_tensor[..., self.index : self.index + 1]
+        #print(self.key, self.index)
+        return global_state_tensor[..., self.index : self.index + 1]
         
     def __repr__(self):
         return f"SourceNode('{self.key}')"

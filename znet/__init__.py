@@ -1,5 +1,5 @@
-from .nodes import SourceNode, StackNode, ConstantNode, MixingNode, CollapseNode
-from .algebra import _
+from .nodes import SourceNode, OrNode, ConstantNode, AndNode, CollapseNode
+from .algebra import _, __
 from .model import ZNet
 from .core.calculus import value_and_derivatives
 from .core.io import bind_graph_to_bus
@@ -9,11 +9,12 @@ from .constants import DEFAULT_KB
 __all__ = [
     "ZNet",
     "SourceNode",
-    "MixingNode",
-    "StackNode",
+    "AndNode",
+    "OrNode",
     "ConstantNode", 
     "CollapseNode",
     "_",
+    "__",
     "value_and_derivatives",
     "bind_graph_to_bus",
     "build_input_tensor",

@@ -1,10 +1,10 @@
 from .inputs import SourceNode, ConstantNode
-from .geometry import StackNode, MixingNode, CollapseNode
+from .geometry import OrNode, AndNode, CollapseNode
 
 __all__ = [
 	"SourceNode",
 	"ConstantNode",
-	"StackNode",
-	"MixingNode",
+	"OrNode",
+	"AndNode",
     "CollapseNode",
 ]
