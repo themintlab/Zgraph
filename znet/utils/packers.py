@@ -90,11 +90,17 @@ def build_input_tensor(
 
 	if mode == "matched":
 		lengths = [vec.numel() for vec in vectors]
-		if len(set(lengths)) != 1:
+		non_scalar_lengths = sorted({length for length in lengths if length != 1})
+		if len(non_scalar_lengths) > 1:
 			raise ValueError(
-				"matched mode requires all state vectors to have the same length. "
+				"matched mode requires vectors to be either length-1 (scalar-like) "
+				"or share one common length. "
 				f"Got lengths: {lengths}"
 			)
+
+		target_len = non_scalar_lengths[0] if non_scalar_lengths else 1
+		if target_len > 1:
+			vectors = [vec.expand(target_len) if vec.numel() == 1 else vec for vec in vectors]
 
 		packed = torch.stack(vectors, dim=-1)
 		if requires_grad:

@@ -1,0 +1,13 @@
+phase diagram visualization
+convex visualization
+reference potential as polynomial
+Enthalpy subgraph
+- Spindoal
+material properties
+    - bulk modulus
+    - heat capacity
+    - t fusion?
+    - h fusion?
+    - chemical potential
+signal = 1/T? mu/RT? Need some preprocess, some thermo-aware wrapper...
+
