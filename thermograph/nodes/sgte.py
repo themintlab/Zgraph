@@ -24,3 +24,23 @@ class SGTENode(nn.Module):
         # Get temperature from child node
         T = self.temperature_node(state_tensor)
         return F.SGTE_polynomial(T, self.a, self.b, self.c, self.d, self.e, self.f)
+
+# Take a list of SGTENodes with different coeffs and automatically select the correct one based on temperature thresholds.
+# Or dictionary-key structure: { (T_min, T_max): coeffs_dict }?
+# class PiecewiseSGTENode(nn.Module):
+#     """
+#     Evaluates different SGTE polynomials in different temperature regimes.
+#     Automatically selects the correct polynomial based on the input temperature.
+#     """
+#     def __init__(self, , coeffs_list : list):
+#         super().__init__()
+#         self.temperature_node = temperature_node
+#         self.coeffs_list = coeffs_list
+#         self.sgtes = nn.ModuleList([SGTENode(temperature_node, coeffs) for coeffs in coeffs_list])
+
+#     def forward(self, state_tensor):
+#         T = self.temperature_node(state_tensor)
+#         # For simplicity, we assume coeffs_list is ordered by increasing temperature thresholds.
+#         # In practice, you would want to include explicit thresholds and logic to select the correct SGTENode.
+#         # Here we just use the first one for demonstration.
+#         return self.sgtes[0](state_tensor)
