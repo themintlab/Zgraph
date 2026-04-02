@@ -26,5 +26,3 @@ def collapse(grid, num_sublattices, scale=1.0):
 
     # Un-squeeze to maintain the (*Batch, 1) scalar format.
     return (scale * torch.logsumexp(grid / scale, dim=dims_to_collapse)).unsqueeze(-1)
-
-

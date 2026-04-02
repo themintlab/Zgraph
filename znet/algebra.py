@@ -1,15 +1,13 @@
 
 # znet/algebra.py
-#import copy
-import torch
 
-class ThermoAlgebra:
-    """Mixin that enables 'Thermo-Algebra' DSL syntax."""
+class _GraphAlgebra:
+    """Mixin that enables compositional DSL syntax for graph nodes."""
 
     def __or__(self, other):
         """ 
         Binary operator for 'or' : |
-        Implies stacking of nodes
+        Stacks/combines nodes into a vector of outputs
         """
         from .nodes.geometry import OrNode 
 
@@ -20,7 +18,7 @@ class ThermoAlgebra:
     def __add__(self, other):
         """
         Binary operator for 'addition' : +
-        Implies mixing of nodes
+        Combines nodes with optional interaction term
         """
         from .nodes.geometry import AndNode
 
@@ -28,23 +26,23 @@ class ThermoAlgebra:
         right = list(other.sub_nodes) if (isinstance(other, AndNode) and other.enthalpy is None) else [other]
         return AndNode(left + right)
 
-    def __matmul__(self, enthalpy):
+    def __matmul__(self, interaction):
         """
         Binary operator for matrix multiply : @
-        Applies an enthalpy node to a mixing expression.
+        Applies an interaction term to a composite node.
 
-        Non-mixing nodes are promoted to a degenerate single-node MixingNode,
-        so expressions like SourceNode(...) @ enthalpy are valid.
+        Non-composite nodes are promoted to a single-node composite,
+        so expressions like SourceNode(...) @ interaction_fn are valid.
         """
         from .nodes.geometry import AndNode
 
-        if not callable(enthalpy):
-            raise TypeError("Enthalpy must be a callable node/module with forward(inputs, temperature).")
+        if not callable(interaction):
+            raise TypeError("Interaction must be a callable node/module.")
 
         base = self if isinstance(self, AndNode) else AndNode([self])
 
         # Build a new node to preserve functional-style DSL behavior.
-        return AndNode(list(base.sub_nodes), enthalpy=enthalpy)
+        return AndNode(list(base.sub_nodes), enthalpy=interaction)
 
 
 class _CollapseBracket:
