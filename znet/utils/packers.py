@@ -21,7 +21,7 @@ def build_input_tensor(
 	By default, each state's values are treated as a 1D axis in a Cartesian
 	product grid. Optionally, mode="matched" zips states by index instead.
 	The final tensor's last dimension is the state/channel axis expected by
-	SourceNode indexing.
+	graph node indexing.
 
 	Args:
 		state_values: Mapping of state name -> 1D values.

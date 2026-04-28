@@ -26,7 +26,7 @@ def _iter_graph_modules(root_node):
 
 
 def build_bus_registry(ordered_keys: Sequence[str]) -> dict[str, int]:
-	"""Create the state->channel index mapping used by SourceNode binding."""
+	"""Create the state->channel index mapping used by node binding."""
 	if not isinstance(ordered_keys, Sequence) or not ordered_keys:
 		raise ValueError("ordered_keys must be a non-empty sequence of state names")
 

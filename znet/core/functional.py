@@ -1,28 +1,40 @@
 import torch
 
-def outer_addition(tensor_list):
-    """Atomic Op 1: Builds the uncoupled energy landscape (The 'AND' geometry)."""
-    num_subs = len(tensor_list)
-    aligned_tensors = [
-            t.view(*t.shape[:-1], *[1]*i, t.shape[-1], *[1]*(num_subs - i - 1))
-            for i, t in enumerate(tensor_list)
-        ]
-    return sum(aligned_tensors)
-
-def collapse(grid, num_sublattices, scale=1.0):
+#@torch.compile 
+def marginalize(M_matrix, w_vector, beta = 1.0):
     """
-    Renormalization / collapse degrees of freedom (Trace of Hamiltonian).
-
+    The stateless mathematical core of the ZNet engine.
+    Executes the Tropical Polynomial and SoftMin collapse.
+    
     Args:
-        grid: Energy landscape tensor.
-        num_sublattices: Number of trailing state dimensions to collapse.
-        scale: Softness/temperature-like scale. scale=1 uses the fastest path.
+        M_matrix (torch.Tensor): The static Configuration Matrix. 
+                                 Shape: (Num_Microstates, Num_Clusters)
+        w_vector (torch.Tensor): The dynamic Energy Vector from the subgraphs.
+                                 Shape: (*Batch, Num_Clusters)
+        beta (torch.Tensor):     The thermodynamic smoothing parameter (-kT).
+                                 Beta=inf triggers hardmax.
+                                 Shape: (*Batch, 1)
+                                 
+    Returns:
+        torch.Tensor: The renormalized scalar Free Energy. Shape: (*Batch, 1)
     """
-    dims_to_collapse = tuple(range(-num_sublattices, 0))
 
-    # Fast path for the common case to avoid extra divide/multiply kernels.
-    if scale == 1 or scale == 1.0:
-        return torch.logsumexp(grid, dim=dims_to_collapse).unsqueeze(-1)
+    # ---------------------------------------------------------
+    # STEP 1: The Landscape Construction (Tropical Polynomial)
+    # ---------------------------------------------------------
+    # We map the cluster energies to the allowed microstates.
+    # 'mc'   = Microstates x Clusters (Static Matrix)
+    # '...c' = Batch x Clusters (Dynamic Vector)
+    # '...m' = Batch x Microstates (Output Landscape)
+    energy_landscape = torch.einsum('mc,...c->...m', M_matrix, w_vector)
 
-    # Un-squeeze to maintain the (*Batch, 1) scalar format.
-    return (scale * torch.logsumexp(grid / scale, dim=dims_to_collapse)).unsqueeze(-1)
+    # ---------------------------------------------------------
+    # STEP 2: The Renormalization (Log-Partition Collapse)
+    # ---------------------------------------------------------
+    if isinstance(beta, (int, float)):
+        if beta == 1 or beta == 1.0:
+            return torch.logsumexp(energy_landscape, dim=-1, keepdim=True)
+        if beta == 0 or beta == 0.0:
+            return torch.amax(energy_landscape, dim=-1, keepdim=True)
+
+    return beta * torch.logsumexp(energy_landscape / beta, dim=-1, keepdim=True)

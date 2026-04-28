@@ -1,85 +1,83 @@
 import torch
 import torch.nn as nn
-import warnings
 from ..core import functional as F
-from ..algebra import _GraphAlgebra
 
-class OrNode(_GraphAlgebra, nn.Module):
-    """
-    Combines mutually exclusive components (Species) into a single state vector.
-    Logic: [Phi_A, Phi_B] -> Tensor([Phi_A, Phi_B])
-    """
-    def __init__(self, sub_nodes):
-        super().__init__()
-        self.sub_nodes = nn.ModuleList(sub_nodes)
-        
-    def forward(self, inputs):
-        # Gather all scalar potentials: [ (Batch, 1), (Batch, 1), ... ]
-        scalars = [child(inputs) for child in self.sub_nodes]
-        
-        # Concatenate along the last dimension to make a vector: (Batch, N_species)
-        return torch.cat(scalars, dim=-1)
-
-class AndNode(_GraphAlgebra, nn.Module):
-    """
-    Recursive node that combines multiple child nodes with optional interaction.
-    Logic: [Output_A, Output_B, ...] + Interaction -> Combined_Output
-    """
-    def __init__(self, 
-                 sub_nodes, 
-                 enthalpy=None,  
-                 ):
+class FactorNode(nn.Module):
+    def __init__(self, M_matrix, subgraph_list):
         """
         Args:
-            sub_nodes (list): List of sub-nodes.
-            enthalpy (node, optional): Optional interaction term callable node.
+            M_matrix (torch.Tensor): 2D Tensor of shape (num_microstates, num_clusters).
+            subgraph_list (list[nn.Module]): A list of subgraph modules. The order
+                of modules in this list MUST match the order of the cluster
+                columns in the M_matrix.
         """
         super().__init__()
-        if enthalpy is None:
-            warnings.warn(
-                "AndNode initialized with enthalpy=None; Consider collapsing sub_nodes first.",
-                RuntimeWarning,
+        
+        # Ensure M is a float tensor so it responds to .to(dtype) operations
+        self.register_buffer('M', M_matrix.to(torch.get_default_dtype()))        
+        self.subgraphs = nn.ModuleList(subgraph_list)
+
+    def forward(self, local_signals):
+        # Execute each subgraph and ensure its output has a trailing dimension for concatenation.
+        # The order of subgraphs is critical and must match the columns of M_matrix.
+        cluster_energies = [
+            subgraph(local_signals).view(local_signals.shape[:-1] + (1,))
+            for subgraph in self.subgraphs
+        ]
+
+        # torch.cat handles the memory allocation natively in C++
+        energy_vector = torch.cat(cluster_energies, dim=-1)
+    
+        T = local_signals[..., 0:1]
+
+        beta = - 8.617e-5 * T
+        return F.marginalize(self.M, energy_vector)
+
+
+class LeafNode(nn.Module):
+    def __init__(self, energy_function, signal_indices=None, **initial_guesses):
+        """
+        Args:
+            energy_function (callable): The pure math equation.
+            signal_indices (list[int], optional): Hardcoded indices for early testing.
+            **initial_guesses: Trainable parameters.
+        """
+        super().__init__()
+        self.energy_function = energy_function
+        
+        # ==========================================
+        # THE BINDING LOGIC
+        # ==========================================
+        if signal_indices is not None:
+            # EARLY BINDING (For prototype testing)
+            # Register the provided indices immediately
+            self.register_buffer(
+                'signal_indices', 
+                torch.tensor(signal_indices, dtype=torch.long)
             )
-        self.enthalpy = enthalpy
+        else:
+            # LATE BINDING (For production assembly)
+            # Initialize an empty buffer waiting for the parent to link it
+            self.register_buffer(
+                'signal_indices', 
+                torch.empty(0, dtype=torch.long)
+            )
         
-        # Ensure sub_nodes is always a list, even if a single node is provided
-        if not isinstance(sub_nodes, (list, tuple)):
-            sub_nodes = [sub_nodes]
-        
-        self.sub_nodes = nn.ModuleList(sub_nodes)     
-        self.num_sub_nodes = len(sub_nodes)   
+        # Dynamically register parameters
+        self.theta = nn.ParameterDict({
+            key: nn.Parameter(torch.tensor([val], dtype=torch.float32))
+            for key, val in initial_guesses.items()
+        })
 
-    def forward(self, inputs):
-        # 1. Gather Inputs (Recursive)
-        child_outputs = [mod(inputs) for mod in self.sub_nodes]
-        if not child_outputs:
-            raise ValueError("AndNode requires at least one sub-node.")
+    def forward(self, full_local_signals):
+        # Slice and execute remains completely unchanged
+        sliced_signals = full_local_signals[..., self.signal_indices]
+        return self.energy_function(sliced_signals, **self.theta)
 
-        grid = F.outer_addition(child_outputs) 
-        # Apply interaction term only when present.
-        if self.enthalpy is None:
-            return grid
-        return grid + self.enthalpy(inputs)
-
-class CollapseNode(_GraphAlgebra, nn.Module):
-    """
-    Renormalization / dimensionality reduction node.
-    Traces out the internal structure using logsumexp.
-    """
-    def __init__(self, sub_node, scale = 1.0):
+    def bind_indices(self, new_indices):
         """
-        Args:
-            sub_node: Node to collapse/renormalize.
-            scale: Softness parameter. scale=1 uses the fastest path.
+        Allows the parent PhaseNode to safely overwrite the indices later,
+        even if they were hardcoded during early testing.
         """
-        super().__init__()
-        self.sub_node = sub_node
-        self.scale = scale
-
-    def forward(self, inputs):
-        state_tensor = self.sub_node(inputs)
-
-        batch_rank = inputs.dim() - 1 
-        landscape_rank = state_tensor.dim()
-        num_state_dims = landscape_rank - batch_rank
-        return F.collapse(state_tensor, num_state_dims, scale=self.scale)
+        device = self.signal_indices.device 
+        self.signal_indices = torch.tensor(new_indices, dtype=torch.long, device=device)
