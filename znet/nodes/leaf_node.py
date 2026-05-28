@@ -1,6 +1,19 @@
 import torch
 import torch.nn as nn
 
+class ConstantReference(nn.Module):
+    """The simplest physics model: a trainable constant."""
+    def __init__(self, init_val=0.0):
+        super().__init__()
+        self.value = nn.Parameter(torch.tensor([init_val], dtype=torch.float32))
+
+
+    def forward(self, signals):
+        return self.value
+    
+
+
+
 class LeafNode(nn.Module):
     def __init__(self, energy_function, signal_indices=None, **initial_guesses):
         """
@@ -29,11 +42,3 @@ class LeafNode(nn.Module):
         # Slice and execute with parameters defined positionally
         sliced_signals = full_local_signals[..., self.signal_indices]
         return self.energy_function(sliced_signals, **self.theta)
-
-    def bind_indices(self, new_indices):
-        """
-        Allows the parent PhaseNode to safely overwrite the indices later,
-        even if they were hardcoded during early testing.
-        """
-        device = self.signal_indices.device 
-        self.signal_indices = torch.tensor(new_indices, dtype=torch.long, device=device)

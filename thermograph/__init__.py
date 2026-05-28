@@ -1,5 +1,5 @@
 from .nodes.sgte import SGTENode
-from .constants import KB_EV, KB_J, KB_R, DEFAULT_KB
+from .core.constants import KB_EV, KB_J, KB_R, DEFAULT_KB
 
 __all__ = [
     "SGTENode",

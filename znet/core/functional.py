@@ -1,6 +1,5 @@
 import torch
 
-#@torch.compile 
 def marginalize(M_matrix, w_vector, beta = 1.0):
     """
     The stateless mathematical core of the ZNet engine.

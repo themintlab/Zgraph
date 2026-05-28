@@ -1,5 +1,7 @@
 import znet.nodes as zn
 
+### NB: UNTESTED! ##
+
 class PhaseModel:
     """
     The user-facing Phase object. Handles hot-swapping and compilation.
