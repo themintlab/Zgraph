@@ -44,5 +44,40 @@ class FactorNode(nn.Module):
         # torch.cat handles the memory allocation natively in C++
         energy_vector = torch.cat(cluster_energies, dim=-1)
     
-        beta = self.beta_factor * local_signals[..., self.beta_index]
+        beta = self.beta_factor * local_signals[..., self.beta_index].unsqueeze(-1)
+  
         return F.marginalize(self.M, energy_vector, beta)
+
+
+class TProdNode(nn.Module):
+    def __init__(self, subgraph_list):
+        """
+        Args:
+            subgraph_list (list[nn.Module]): A list of subgraph modules whose outputs will be summed.
+        """
+        super().__init__()
+        if not subgraph_list:
+            raise ValueError("subgraph_list cannot be empty.")
+            
+        self.subgraphs = nn.ModuleList(subgraph_list)
+
+    def forward(self, local_signals):
+        outputs = [subgraph(local_signals) for subgraph in self.subgraphs]
+        return sum(outputs[1:], start=outputs[0])
+
+
+class TPowNode(nn.Module):
+    """Multiplies the output of a subgraph by a constant factor."""
+    def __init__(self, subgraph, factor=-1.0):
+        super().__init__()
+        self.subgraph = subgraph
+        
+        if torch.is_tensor(factor):
+            tensor_val = factor.clone().detach().to(dtype=torch.float32)
+        else:
+            tensor_val = torch.tensor(factor, dtype=torch.float32)
+            
+        self.register_buffer('factor', tensor_val)
+
+    def forward(self, local_signals):
+        return self.factor * self.subgraph(local_signals)

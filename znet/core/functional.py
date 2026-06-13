@@ -27,13 +27,11 @@ def marginalize(M_matrix, w_vector, beta = 1.0):
     # '...m' = Batch x Microstates (Output Landscape)
     energy_landscape = torch.einsum('mc,...c->...m', M_matrix, w_vector)
 
-    # ---------------------------------------------------------
-    # STEP 2: The Renormalization (Log-Partition Collapse)
-    # ---------------------------------------------------------
-    if isinstance(beta, (int, float)):
-        if beta == 1 or beta == 1.0:
-            return torch.logsumexp(energy_landscape, dim=-1, keepdim=True)
-        if beta == 0 or beta == 0.0:
-            return torch.amax(energy_landscape, dim=-1, keepdim=True)
+    # TODO: Split into a specialized function since  data-dependent? 
+    # if isinstance(beta, (int, float)):
+    #     if beta == 1 or beta == 1.0:
+    #         return torch.logsumexp(energy_landscape, dim=-1, keepdim=True)
+    #     if beta == 0 or beta == 0.0:
+    #         return torch.amax(energy_landscape, dim=-1, keepdim=True)
 
     return beta * torch.logsumexp(energy_landscape / beta, dim=-1, keepdim=True)

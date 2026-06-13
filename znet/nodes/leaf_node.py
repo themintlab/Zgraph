@@ -1,16 +1,33 @@
 import torch
 import torch.nn as nn
 
-class ConstantReference(nn.Module):
-    """The simplest physics model: a trainable constant."""
+class ConstantNode(nn.Module):
+    """The simplest physics model: a trainable constant (or constants)."""
     def __init__(self, init_val=0.0):
         super().__init__()
-        self.value = nn.Parameter(torch.tensor([init_val], dtype=torch.float32))
+        
+        if torch.is_tensor(init_val):
+            tensor_val = init_val.clone().detach().to(dtype=torch.float32)
+        else:
+            tensor_val = torch.tensor(init_val, dtype=torch.float32)
+            
+        self.value = nn.Parameter(torch.atleast_1d(tensor_val))
 
 
     def forward(self, signals):
         return self.value
     
+class SignalNode(nn.Module):
+    """A node that extracts specific signal indices from the input."""
+    def __init__(self, signal_indices):
+        super().__init__()
+        # Passing a single int creates a 0-D tensor (reduces dimension on slice).
+        # Passing a list creates a 1-D tensor (preserves dimension on slice).
+        self.register_buffer('signal_indices', torch.tensor(signal_indices, dtype=torch.long))
+
+    def forward(self, local_signals):
+        return local_signals[..., self.signal_indices]
+
 
 
 
