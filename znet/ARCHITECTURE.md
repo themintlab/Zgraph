@@ -30,9 +30,3 @@ All inputs and outputs between `znet` modules must be `torch.Tensor` types. No c
 
 ### The Reason: Kernel Fusion
 `torch.compile` performs best when it can trace a continuous stream of tensor operations. Passing non-tensor objects forces the compiler to "break" the graph and return to the Python interpreter (a "graph break"), which significantly degrades performance and prevents the fusion of multiple operations into a single GPU kernel.
-
-## Dimension Agnosticism
-Equations implemented in `znet` must be written using broadcasting-safe operations, usually facilitated through right-hand indexing.
-
-### The Reason: Batch Scalability
-ZNet must support arbitrary batch sizes and multi-dimensional microstate grids. By adhering to broadcasting standards, the same mathematical logic can be applied to a single point calculation or a million-cell simulation without code changes.

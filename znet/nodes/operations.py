@@ -32,20 +32,13 @@ class FactorNode(nn.Module):
         self.subgraphs = nn.ModuleList(subgraph_list)
 
     def forward(self, local_signals):
-        # Execute each subgraph and ensure its output has a trailing dimension for concatenation.
-        # The order of subgraphs is critical and must match the columns of M_matrix.
-        # This is a strict-tree architecture - leaves cannot be shared. In the future, the w_vector
-        # might be best passed into the forward call by an orchestrator to facilitate sharing
-        cluster_energies = [
-            subgraph(local_signals).view(local_signals.shape[:-1] + (1,))
-            for subgraph in self.subgraphs
-        ]
-
-        # torch.cat handles the memory allocation natively in C++
-        energy_vector = torch.cat(cluster_energies, dim=-1)
+        # local_signals is (Channels,). Subgraphs return scalars.
+        energy_vector = torch.stack([subgraph(local_signals) for subgraph in self.subgraphs])
     
-        beta = self.beta_factor * local_signals[..., self.beta_index].unsqueeze(-1)
+        # Extract scalar beta
+        beta = self.beta_factor * local_signals[self.beta_index]
   
+        # F.marginalize now returns a 0D scalar.
         return F.marginalize(self.M, energy_vector, beta)
 
 
@@ -63,7 +56,8 @@ class TProdNode(nn.Module):
 
     def forward(self, local_signals):
         outputs = [subgraph(local_signals) for subgraph in self.subgraphs]
-        return sum(outputs[1:], start=outputs[0])
+        return torch.stack(outputs, dim=0).sum(dim=0)
+        #return sum(outputs[1:], start=outputs[0])
 
 
 class TPowNode(nn.Module):

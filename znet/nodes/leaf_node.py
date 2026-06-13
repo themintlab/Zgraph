@@ -11,7 +11,7 @@ class ConstantNode(nn.Module):
         else:
             tensor_val = torch.tensor(init_val, dtype=torch.float32)
             
-        self.value = nn.Parameter(torch.atleast_1d(tensor_val))
+        self.value = nn.Parameter(tensor_val)
 
 
     def forward(self, signals):
@@ -26,10 +26,9 @@ class SignalNode(nn.Module):
         self.register_buffer('signal_indices', torch.tensor(signal_indices, dtype=torch.long))
 
     def forward(self, local_signals):
-        return local_signals[..., self.signal_indices]
-
-
-
+        # Summing selected signals implements Tropical Multiplication.
+        # Slicing a 1D vector with indices returns a vector; sum() makes it a scalar.
+        return local_signals[self.signal_indices].sum()
 
 class LeafNode(nn.Module):
     def __init__(self, energy_function, signal_indices=None, **initial_guesses):
@@ -51,11 +50,11 @@ class LeafNode(nn.Module):
         # Dynamically register parameters
         # Note: Might cause issues with torch.script but should be okay with torch.compile
         self.theta = nn.ParameterDict({
-            key: nn.Parameter(torch.tensor([val], dtype=torch.float32))
+            key: nn.Parameter(torch.tensor(val, dtype=torch.float32))
             for key, val in initial_guesses.items()
         })
 
     def forward(self, full_local_signals):
-        # Slice and execute with parameters defined positionally
-        sliced_signals = full_local_signals[..., self.signal_indices]
+        # Strictly vector input: (Channels,) -> scalar output: ()
+        sliced_signals = full_local_signals[self.signal_indices]
         return self.energy_function(sliced_signals, **self.theta)

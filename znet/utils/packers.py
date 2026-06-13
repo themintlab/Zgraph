@@ -10,7 +10,7 @@ def build_input_tensor(
 	*,
 	dtype: torch.dtype | None = None,
 	device: torch.device | str | None = None,
-	mode: str = "cartesian",
+	mode: str = "matched",
 	indexing: str = "ij",
 	flatten: bool = False,
 	requires_grad: bool = False,

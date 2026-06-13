@@ -9,29 +9,24 @@ def marginalize(M_matrix, w_vector, beta = 1.0):
         M_matrix (torch.Tensor): The static Configuration Matrix. 
                                  Shape: (Num_Microstates, Num_Clusters)
         w_vector (torch.Tensor): The dynamic Energy Vector from the subgraphs.
-                                 Shape: (*Batch, Num_Clusters)
+                                 Shape: (Num_Clusters,)
         beta (torch.Tensor):     The thermodynamic smoothing parameter (-kT).
                                  Beta=inf triggers hardmax.
-                                 Shape: (*Batch, 1)
+                                 Shape: () (Scalar)
                                  
     Returns:
-        torch.Tensor: The renormalized scalar Free Energy. Shape: (*Batch, 1)
+        torch.Tensor: The renormalized scalar Free Energy. Shape: () (Scalar)
     """
 
     # ---------------------------------------------------------
     # STEP 1: The Landscape Construction (Tropical Polynomial)
     # ---------------------------------------------------------
     # We map the cluster energies to the allowed microstates.
-    # 'mc'   = Microstates x Clusters (Static Matrix)
-    # '...c' = Batch x Clusters (Dynamic Vector)
-    # '...m' = Batch x Microstates (Output Landscape)
-    energy_landscape = torch.einsum('mc,...c->...m', M_matrix, w_vector)
+    # Perform a standard matrix-vector multiplication for the energy landscape.
+    # M_matrix: (Microstates, Clusters), w_vector: (Clusters,) -> (Microstates,)
+    energy_landscape = M_matrix @ w_vector
 
     # TODO: Split into a specialized function since  data-dependent? 
-    # if isinstance(beta, (int, float)):
-    #     if beta == 1 or beta == 1.0:
-    #         return torch.logsumexp(energy_landscape, dim=-1, keepdim=True)
-    #     if beta == 0 or beta == 0.0:
-    #         return torch.amax(energy_landscape, dim=-1, keepdim=True)
 
-    return beta * torch.logsumexp(energy_landscape / beta, dim=-1, keepdim=True)
+    # Calculate the partition function / free energy as a scalar.
+    return beta * torch.logsumexp(energy_landscape / beta, dim=-1)
