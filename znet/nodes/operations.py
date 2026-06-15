@@ -61,10 +61,16 @@ class TProdNode(nn.Module):
 
 
 class TPowNode(nn.Module):
-    """Multiplies the output of a subgraph by a constant factor."""
-    def __init__(self, subgraph, factor=-1.0):
+    """Multiplies the outputs of subgraphs together and by a constant factor."""
+    def __init__(self, subgraph_list, factor=1.0):
         super().__init__()
-        self.subgraph = subgraph
+        
+        if isinstance(subgraph_list, nn.Module):
+            subgraph_list = [subgraph_list]
+        elif not subgraph_list:
+            raise ValueError("subgraph_list cannot be empty.")
+            
+        self.subgraphs = nn.ModuleList(subgraph_list)
         
         if torch.is_tensor(factor):
             tensor_val = factor.clone().detach().to(dtype=torch.float32)
@@ -74,4 +80,5 @@ class TPowNode(nn.Module):
         self.register_buffer('factor', tensor_val)
 
     def forward(self, local_signals):
-        return self.factor * self.subgraph(local_signals)
+        outputs = [subgraph(local_signals) for subgraph in self.subgraphs]
+        return self.factor * torch.stack(outputs, dim=0).prod(dim=0)
