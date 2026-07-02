@@ -108,6 +108,7 @@ def build_input_tensor(
 		return packed, ordered_keys
 
 	grid_views = torch.meshgrid(*vectors, indexing=indexing)
+	print(grid_views)
 	out_shape = tuple(vec.numel() for vec in vectors) + (len(vectors),)
 	packed = torch.empty(out_shape, dtype=inferred_dtype, device=inferred_device)
 
