@@ -3,7 +3,7 @@ import torch.nn as nn
 from ..core import functional as F
 
 class FactorNode(nn.Module):
-    def __init__(self, M_matrix, subgraph_list, beta_index=0, beta_factor = 1):
+    def __init__(self, subgraph_list, M_matrix = None, beta_index=0, beta_factor = 1):
         """
         Args:
             M_matrix (torch.Tensor): 2D Tensor of shape (num_microstates, num_clusters).
@@ -14,8 +14,10 @@ class FactorNode(nn.Module):
             beta_factor: a scalar multiplier of the rationality parameter
         """
         super().__init__()
-        
-        if M_matrix.ndim != 2:
+
+        if M_matrix is None:
+            M_matrix = torch.eye(len(subgraph_list))
+        elif M_matrix.ndim != 2:
             raise ValueError(f"M_matrix must be a 2D tensor, got {M_matrix.ndim}D.")
             
         num_clusters = M_matrix.shape[1]
