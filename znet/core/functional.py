@@ -26,7 +26,5 @@ def marginalize(M_matrix, w_vector, beta = 1.0):
     # M_matrix: (Microstates, Clusters), w_vector: (Clusters,) -> (Microstates,)
     energy_landscape = M_matrix @ w_vector
 
-    # TODO: Split into a specialized function since  data-dependent? 
-
     # Calculate the partition function / free energy as a scalar.
     return beta * torch.logsumexp(energy_landscape / beta, dim=-1)
