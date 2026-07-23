@@ -10,16 +10,7 @@ notebooks = glob.glob(os.path.join(examples_dir, "*.ipynb"))
 install_code = """# Install Znet if running in Google Colab
 import sys
 if 'google.colab' in sys.modules:
-    import getpass
-    import subprocess
-    
-    print("This repository is private. Please enter a GitHub Personal Access Token (PAT).")
-    print("You can generate one at https://github.com/settings/tokens (needs 'repo' scope).")
-    pat = getpass.getpass('GitHub PAT: ')
-    
-    repo_url = f"https://{pat}@github.com/themintlab/Znet.git"
-    print("Installing Znet...")
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", f"git+{repo_url}"], check=True)
+    !pip install -q git+https://github.com/themintlab/Znet.git
     print("Successfully installed Znet!")"""
 
 for nb_path in notebooks:
