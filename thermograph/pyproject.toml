@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thermograph"
+version = "0.1.0"
+description = "Thermodynamic application and UI layer built on top of zgraph"
+authors = [
+  { name="Mike Welland" }
+]
+readme = "README.md"
+license = { file="LICENSE" }
+dependencies = [
+    "torch",
+    "zgraph",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["thermograph*"]

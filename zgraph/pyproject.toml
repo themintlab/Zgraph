@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zgraph"
+version = "0.1.0"
+description = "Grand Canonical Tensor Graph for thermodynamic calculations"
+authors = [
+  { name="Mike Welland" }
+]
+readme = "README.md"
+license = { file="LICENSE" }
+dependencies = [
+    "torch",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["zgraph*"]
