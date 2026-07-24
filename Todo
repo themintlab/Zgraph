@@ -11,7 +11,7 @@ material properties
     - chemical potential
 signal = 1/T? mu/RT? Need some preprocess, some thermo-aware wrapper...
 
-ZNet: 
+ZGraph: 
 - remove special place for 'interaction' -> broadcast all shapes together? identifies interactions as just another graph for hte bonds themselves (implies binding?) Elegant / extensible for higher order couping (teriary, etc)
 
 

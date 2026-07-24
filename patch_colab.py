@@ -2,27 +2,27 @@ import nbformat
 import glob
 import os
 
-repo_url = "themintlab/Znet"
+repo_url = "themintlab/Zgraph"
 branch = "main"
-examples_dir = r"c:\Users\wellandm\Code\Znet\znet\examples"
+examples_dir = r"c:\Users\wellandm\Code\Zgraph\zgraph\examples"
 notebooks = glob.glob(os.path.join(examples_dir, "*.ipynb"))
 
-install_code = """# Install Znet if running in Google Colab
+install_code = """# Install Zgraph if running in Google Colab
 import sys
 if 'google.colab' in sys.modules:
-    !pip install -q git+https://github.com/themintlab/Znet.git
-    print("Successfully installed Znet!")"""
+    !pip install -q git+https://github.com/themintlab/Zgraph.git
+    print("Successfully installed Zgraph!")"""
 
 for nb_path in notebooks:
     with open(nb_path, 'r', encoding='utf-8') as f:
         nb = nbformat.read(f, as_version=4)
         
     filename = os.path.basename(nb_path)
-    colab_url = f"https://colab.research.google.com/github/{repo_url}/blob/{branch}/znet/examples/{filename}"
+    colab_url = f"https://colab.research.google.com/github/{repo_url}/blob/{branch}/zgraph/examples/{filename}"
     badge_md = f"[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]({colab_url})"
     
     # Remove any existing Colab install cells
-    nb.cells = [cell for cell in nb.cells if "github.com/themintlab/Znet" not in cell.source and "Open In Colab" not in cell.source]
+    nb.cells = [cell for cell in nb.cells if "github.com/themintlab/Zgraph" not in cell.source and "Open In Colab" not in cell.source]
     
     cells_to_add = []
     

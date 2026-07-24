@@ -1,4 +1,4 @@
-import znet.core as zn
+import zgraph.core as zn
 
 class LeafNode:
     """
