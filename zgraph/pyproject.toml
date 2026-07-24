@@ -5,15 +5,34 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "zgraph"
 version = "0.1.0"
-description = "Grand Canonical Tensor Graph for thermodynamic calculations"
+description = "A hardware-accelerated, fully differentiable soft-tropical tensor engine for high-throughput statistical mechanics."
 authors = [
-  { name="Mike Welland" }
+  { name="Mike Welland", email="mike@mikewelland.com" }
 ]
 readme = "README.md"
 license = { file="LICENSE" }
+requires-python = ">=3.9"
+keywords = ["thermodynamics", "tensor-graph", "pytorch", "materials-science"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
 dependencies = [
     "torch",
 ]
+
+[project.urls]
+Homepage = "https://github.com/themintlab/Zgraph"
+Repository = "https://github.com/themintlab/Zgraph"
+"Bug Tracker" = "https://github.com/themintlab/Zgraph/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

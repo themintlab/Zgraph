@@ -5,16 +5,35 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "thermograph"
 version = "0.1.0"
-description = "Thermodynamic application and UI layer built on top of zgraph"
+description = "A Python domain compiler bridging classical CALPHAD and statistical thermodynamics with modern tensor networks."
 authors = [
   { name="Mike Welland" }
 ]
 readme = "README.md"
 license = { file="LICENSE" }
+requires-python = ">=3.9"
+keywords = ["thermodynamics", "sgte", "phase-diagrams", "materials-science", "pytorch"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
 dependencies = [
     "torch",
     "zgraph",
 ]
+
+[project.urls]
+Homepage = "https://github.com/themintlab/Zgraph"
+Repository = "https://github.com/themintlab/Zgraph"
+"Bug Tracker" = "https://github.com/themintlab/Zgraph/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
