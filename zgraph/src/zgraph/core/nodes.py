@@ -50,6 +50,22 @@ class FactorNode(nn.Module):
         return F.marginalize(self.M, energy_vector, beta)
 
 
+class ProductNode(nn.Module):
+    """Multiplies a list of subgraph outputs elementwise (tropical power)."""
+    def __init__(self, subgraph_list):
+        super().__init__()
+        if len(subgraph_list) == 0:
+            raise ValueError("subgraph_list must contain at least one subgraph.")
+        for subgraph in subgraph_list:
+            if not isinstance(subgraph, nn.Module):
+                raise TypeError("Each entry in subgraph_list must be an nn.Module.")
+        self.subgraphs = nn.ModuleList(subgraph_list)
+
+    def forward(self, local_signals):
+        values = torch.stack([subgraph(local_signals) for subgraph in self.subgraphs], dim=0)
+        return torch.prod(values, dim=0)
+
+
 class ConstantNode(nn.Module):
     """The simplest physics model: a trainable constant (or constants)."""
     def __init__(self, init_val=1.):
