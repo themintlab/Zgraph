@@ -3,15 +3,16 @@ import torch.nn as nn
 from . import functional as F
 
 class FactorNode(nn.Module):
-    def __init__(self, M_matrix, subgraph_list, beta_index=0, beta_factor = 1):
+    def __init__(self, M_matrix, subgraph_list, beta=None):
         """
         Args:
             M_matrix (torch.Tensor): 2D Tensor of shape (num_microstates, num_clusters).
             subgraph_list (list[nn.Module]): A list of subgraph modules. The order
                 of modules in this list MUST match the order of the cluster
                 columns in the M_matrix.
-            beta_index: an integer index of the rationality parameter from the signal. 
-            beta_factor: a scalar multiplier of the rationality parameter
+            beta (nn.Module, optional): A module that extracts or provides the 
+                rationality/temperature parameter (e.g. SignalNode or ConstantNode).
+                Defaults to ConstantNode(1.0).
         """
         super().__init__()
 
@@ -32,13 +33,20 @@ class FactorNode(nn.Module):
             )
 
         self.register_buffer('M', M_matrix.to(torch.get_default_dtype()))
-        self.register_buffer('beta_index', torch.tensor(beta_index, dtype=torch.long))
-        self.register_buffer('beta_factor', torch.tensor(beta_factor, dtype=torch.float32))    
+        
+        if beta is None:
+            beta = ConstantNode(1.0)
+        elif isinstance(beta, (int, float, torch.Tensor)):
+            beta = ConstantNode(beta)
+        elif not isinstance(beta, nn.Module):
+            raise TypeError("beta must be an nn.Module, a numeric value (int/float), or a scalar torch.Tensor.")
+            
+        self.beta = beta
         self.subgraphs = nn.ModuleList(subgraph_list)
 
     def forward(self, local_signals):
         energy_vector = torch.stack([subgraph(local_signals) for subgraph in self.subgraphs])
-        beta = torch.clamp(self.beta_factor * local_signals[self.beta_index], min = 1.2e-7)
+        beta = torch.clamp(self.beta(local_signals), min = 1.2e-7)
         return F.marginalize(self.M, energy_vector, beta)
 
 
@@ -59,16 +67,23 @@ class ConstantNode(nn.Module):
     
 class SignalNode(nn.Module):
     """A node that extracts specific signal indices from the input."""
-    def __init__(self, signal_indices):
+    def __init__(self, signal_index):
         super().__init__()
-        # Passing a single int creates a 0-D tensor (reduces dimension on slice).
-        # Passing a list creates a 1-D tensor (preserves dimension on slice).
-        self.register_buffer('signal_indices', torch.tensor(signal_indices, dtype=torch.long))
+        try:
+            signal_index = int(signal_index)
+        except (TypeError, ValueError):
+            raise TypeError("signal_index must be an integer. Use SignalNodes() for multiple nodes.")
+        self.register_buffer('signal_index', torch.tensor(signal_index, dtype=torch.long))
 
     def forward(self, local_signals):
-        # Summing selected signals implements Tropical Multiplication.
-        # Slicing a 1D vector with indices returns a vector; sum() makes it a scalar.
-        return local_signals[self.signal_indices].sum()
+        return local_signals[self.signal_index]
+
+def SignalNodes(*indices):
+    """
+    Convenience factory for generating multiple SignalNodes simultaneously.
+    Usage: mu1, mu2 = SignalNodes(1, 2)
+    """
+    return [SignalNode(i) for i in indices]
 
 class LeafNode(nn.Module):
     def __init__(self, energy_function, signal_indices=None, **initial_guesses):
