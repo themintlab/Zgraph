@@ -23,6 +23,12 @@ def finalize(root_node, in_dims=0, compile_graph=True, compile_mode="default"):
         ]
         return type(root_node)(funcs)
 
+    if isinstance(root_node, dict):
+        return {
+            key: finalize(node, in_dims=in_dims, compile_graph=compile_graph, compile_mode=compile_mode)
+            for key, node in root_node.items()
+        }
+
 
     batched = vmap(root_node, in_dims=in_dims)
     if compile_graph:

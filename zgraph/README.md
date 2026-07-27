@@ -62,11 +62,11 @@ M_matrix = torch.tensor([
 # 2. Define pure energy subgraphs (Leaf / Constant / Signal nodes)
 subgraphs = [
     zg.ConstantNode(init_val=1.5),
-    zg.SignalNode(signal_indices=[0])
+    zg.SignalNode(0)
 ]
 
 # 3. Instantiate the FactorNode engine
-factor_node = zg.FactorNode(M_matrix=M_matrix, subgraph_list=subgraphs, beta_index=1)
+factor_node = zg.FactorNode(M_matrix=M_matrix, subgraph_list=subgraphs, beta=1.0)
 
 # 4. Pure tensor input evaluation
 signals = torch.tensor([0.2, 1.0])  # Unlabeled numerical input tensor

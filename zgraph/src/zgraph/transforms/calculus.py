@@ -38,4 +38,7 @@ def legendre_transform(fcn, idx):
         funcs = [legendre_transform(f, idx) for f in fcn]
         return type(fcn)(funcs)
 
+    if isinstance(fcn, dict):
+        return {key: legendre_transform(value, idx) for key, value in fcn.items()}
+
     return LegendreStep(fcn, idx)
