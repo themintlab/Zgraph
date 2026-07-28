@@ -2,24 +2,31 @@ import torch
 from torch.func import vmap, functional_call
 
 
-def finalize(root_node, batched=True, in_dims=0, compile_graph=True, compile_mode="default"):
+def compile_graph(root_node, batched=True, in_dims=0, use_torch_compile=True, compile_mode="default"):
     """
-    Finalizes a ZGraph nn.Module into an efficient, stateless callable.
+    Compiles a ZGraph nn.Module into an efficient, stateless Python callable.
+
+    The module (graph) remains the persistent object of interest. This function
+    derives a pure execution function from it — suitable for inference, training
+    loops, or functional composition — without creating a new persistent object.
 
     Buffers (graph structure: M matrices, signal indices, etc.) are captured
-    once at finalize-time and baked into the closure — they cannot change after
-    finalization. Parameters (learnable weights) remain live and are read from
-    the module on every call, so gradient flow and optimizer updates work
-    transparently.
+    once at compile-time and baked into the closure. They cannot change after
+    compilation. Call ``compile_graph`` again if the module is moved to a new
+    device or its structure changes.
+
+    Parameters remain live: the returned function reads ``module.named_parameters()``
+    on every call, so optimizer updates and gradient flow work transparently.
 
     The returned callable has signature:
-        fn(x)          — when batched=False, x is a single 1-D signal tensor
-        fn(x_batch)    — when batched=True,  x_batch is (N, channels)
+        fn(x)        — when batched=False, x is a single 1-D signal tensor
+        fn(x_batch)  — when batched=True,  x_batch is (N, channels)
 
-    For functional composition (e.g. torch.func.grad, jacrev), the lower-level
-    ``fn`` attribute exposes the pure (params, x) → scalar signature:
-        grad_fn = torch.func.grad(finalized.fn, argnums=0)
-        dparam  = grad_fn(dict(module.named_parameters()), x_single)
+    For functional composition (e.g. ``torch.func.grad``, ``jacrev``), the
+    ``fn`` attribute exposes the pure ``(params, x) → scalar`` signature:
+
+        g = torch.func.grad(compiled.fn, argnums=0)
+        dparam = g(dict(module.named_parameters()), x_single)
 
     Args:
         root_node (nn.Module or container of nn.Module):
@@ -31,87 +38,59 @@ def finalize(root_node, batched=True, in_dims=0, compile_graph=True, compile_mod
         in_dims (int or tuple):
             Passed to vmap to control which dimension to batch over. Ignored
             when batched=False.
-        compile_graph (bool):
+        use_torch_compile (bool):
             Whether to apply torch.compile after vmapping. Default is True.
         compile_mode (str):
             Mode parameter passed to torch.compile. Default is 'default'.
 
     Returns:
-        FinalizedGraph or container of FinalizedGraph: a callable wrapping the
-        node, matching the structure of the input (list/tuple/dict passthrough).
+        callable or container of callables: A plain Python callable (with a
+        ``.fn`` attribute for functional transforms), matching the structure of
+        the input (list/tuple/dict passthrough).
 
     Note:
-        Call finalize *after* moving the module to its target device. Buffers
-        are captured by reference at call time; a subsequent ``.to(device)``
-        will not update the baked-in copies.
+        Call ``compile_graph`` *after* moving the module to its target device.
     """
     if isinstance(root_node, (list, tuple)):
         funcs = [
-            finalize(node, batched=batched, in_dims=in_dims,
-                     compile_graph=compile_graph, compile_mode=compile_mode)
+            compile_graph(node, batched=batched, in_dims=in_dims,
+                          use_torch_compile=use_torch_compile, compile_mode=compile_mode)
             for node in root_node
         ]
         return type(root_node)(funcs)
 
     if isinstance(root_node, dict):
         return {
-            key: finalize(node, batched=batched, in_dims=in_dims,
-                          compile_graph=compile_graph, compile_mode=compile_mode)
+            key: compile_graph(node, batched=batched, in_dims=in_dims,
+                               use_torch_compile=use_torch_compile, compile_mode=compile_mode)
             for key, node in root_node.items()
         }
 
-    return FinalizedGraph(root_node, batched=batched, in_dims=in_dims,
-                          compile_graph=compile_graph, compile_mode=compile_mode)
+    # Buffers represent fixed graph structure — baked into the closure at
+    # compile-time so they are never passed as arguments.
+    buffers = dict(root_node.named_buffers(recurse=True))
 
+    # Pure (params, x) → scalar function; exposed for functional transforms.
+    def stateless_fn(params, x):
+        return functional_call(root_node, {**params, **buffers}, (x,))
 
-class FinalizedGraph:
-    """
-    Wraps an nn.Module as a stateless, optionally vmapped and compiled callable.
+    # Build the execution path: optionally vmap, then optionally torch.compile.
+    # vmap-then-compile is the correct ordering: the compiler sees the full
+    # batched computation and can fuse across the batch dimension.
+    if batched:
+        _exec = vmap(stateless_fn, in_dims=(None, in_dims))
+    else:
+        _exec = stateless_fn
 
-    Buffers are baked in at construction time; parameters are read live from the
-    module on every call so that optimizer updates and gradient computation work
-    without any extra bookkeeping.
-    """
+    if use_torch_compile:
+        _exec = torch.compile(_exec, mode=compile_mode)
 
-    def __init__(self, module, batched=True, in_dims=0,
-                 compile_graph=True, compile_mode="default"):
-        self._module = module
+    def call(x):
+        params = dict(root_node.named_parameters())
+        return _exec(params, x)
 
-        # Capture buffers once — these represent fixed graph structure and must
-        # not change after finalization. Buffers already have requires_grad=False
-        # so no detach is needed; we reference them directly to avoid copies.
-        self._buffers = dict(module.named_buffers(recurse=True))
+    # Attach the raw (params, x) function for torch.func composition.
+    call.fn = stateless_fn
 
-        # Pure (params, x) → scalar function; exposed for functional transforms.
-        def _stateless(params, x):
-            return functional_call(module, {**params, **self._buffers}, (x,))
+    return call
 
-        self.fn = _stateless
-
-        # Build the execution path: optionally vmap, then optionally compile.
-        if batched:
-            _exec = vmap(_stateless, in_dims=(None, in_dims))
-        else:
-            _exec = _stateless
-
-        if compile_graph:
-            _exec = torch.compile(_exec, mode=compile_mode)
-
-        self._exec = _exec
-
-    def __call__(self, x):
-        params = dict(self._module.named_parameters())
-        return self._exec(params, x)
-
-    def parameters(self):
-        """Delegate to the underlying module for use with torch.optim."""
-        return self._module.parameters()
-
-    def named_parameters(self):
-        """Delegate to the underlying module."""
-        return self._module.named_parameters()
-
-    @property
-    def module(self):
-        """The original nn.Module, e.g. for state_dict serialization."""
-        return self._module
