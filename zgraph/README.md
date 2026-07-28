@@ -37,7 +37,7 @@ $$\mathcal{F}(\mathbf{x}) = \beta \cdot \text{LogSumExp}\left( \frac{\mathbf{M} 
 where $\beta$ controls the smoothing transition between exact hard-minimum selection ($\beta \to 0^+$) and soft statistical integration.
 
 ### 3. Hardware-Native Execution
-Engine nodes (`FactorNode`, `LeafNode`, `SignalNode`) are engineered to compile seamlessly via `torch.compile` into fused C++/CUDA kernels. Vectorization across spatial grids or multi-dimensional parameter batches is achieved without overhead using PyTorch's `vmap`.
+Engine nodes (`FactorNode`, `BaseLeafNode`, `DynamicLeafNode`, `SignalNode`) are engineered to compile seamlessly via `torch.compile` into fused C++/CUDA kernels. Vectorization across spatial grids or multi-dimensional parameter batches is achieved without overhead using PyTorch's `vmap`.
 
 ### 4. End-to-End Differentiability
 Built for direct integration with `torch.func`, `zgraph` provides exact analytical Jacobians and Hessians ($\nabla_\mathbf{x} \mathcal{F}$, $\nabla^2_\mathbf{x} \mathcal{F}$) for gradient-based optimization, continuous sensitivity analysis, and autograd-driven parameter estimation.
