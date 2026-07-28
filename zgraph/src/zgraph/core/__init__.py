@@ -1,5 +1,5 @@
 from .operation_nodes import FactorNode, ProductNode
-from .leaf_nodes import BaseLeafNode, DynamicLeafNode, ConstantNode, SignalNode
+from .leaf_nodes import BaseLeafNode, DynamicLeafNode, ConstantNode, SignalNode, SignalNodes
 
 __all__ = [
     "FactorNode",
@@ -8,4 +8,5 @@ __all__ = [
     "DynamicLeafNode",
     "ConstantNode",
     "SignalNode",
+    "SignalNodes",
 ]

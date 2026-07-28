@@ -63,24 +63,22 @@ class ConstantNode(nn.Module):
     def forward(self, signals):
         return self.value
     
-class SignalNode(BaseLeafNode):
-    """A node that extracts specific signal indices from the input.
-    Can extract a single scalar signal or a vector of signals."""
-    def __init__(self, signal_indices):
-        if isinstance(signal_indices, int):
-            signal_indices = [signal_indices]
-        super().__init__(signal_indices)
+class SignalNode(nn.Module):
+    """A node that extracts specific signal indices from the input."""
+    def __init__(self, signal_index):
+        super().__init__()
+        try:
+            signal_index = int(signal_index)
+        except (TypeError, ValueError):
+            raise TypeError("signal_index must be an integer. Use SignalNodes() for multiple nodes.")
+        self.register_buffer('signal_index', torch.tensor(signal_index, dtype=torch.long))
 
     def forward(self, local_signals):
-        res = local_signals[self.signal_indices]
-        if len(self.signal_indices) == 1:
-            return res.squeeze(-1)
-        return res
+        return local_signals[self.signal_index]
 
-    def export_nodes(self):
-        """
-        Exports a list of individual scalar SignalNodes, one for each index.
-        Replaces the old SignalNodes() factory function.
-        Usage: T, mu1, mu2 = SignalNode([0, 1, 2]).export_nodes()
-        """
-        return [SignalNode(idx.item()) for idx in self.signal_indices]
+def SignalNodes(*indices):
+    """
+    Convenience factory for generating multiple SignalNodes simultaneously.
+    Usage: mu1, mu2 = SignalNodes(1, 2)
+    """
+    return [SignalNode(i) for i in indices]
