@@ -41,12 +41,11 @@ class DynamicLeafNode(nn.Module):
         
         # We don't register them as Parameters because this is evaluation-only.
         # But we do need to pass them to the function, so we register them as buffers.
-        self.constant_keys = []
+        self.constant_keys = tuple(constants.keys())
         for key, val in constants.items():
             if not torch.is_tensor(val):
                 val = torch.tensor(val, dtype=torch.float32)
             self.register_buffer(key, val)
-            self.constant_keys.append(key)
 
     def forward(self, full_local_signals):
         # Strictly vector input: (Channels,) -> scalar output: ()

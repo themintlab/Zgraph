@@ -4,6 +4,10 @@ from . import functional as F
 from .leaf_nodes import ConstantNode
 
 class FactorNode(nn.Module):
+    # Minimum allowed beta value to prevent numerical instability in exponential calculations
+    # Specifically prevents division by zero when calculating exp(-E / beta) in marginalization.
+    _MIN_BETA = 1.2e-7
+
     def __init__(self, M_matrix, subgraph_list, beta=None):
         """
         Args:
@@ -47,8 +51,10 @@ class FactorNode(nn.Module):
 
     def forward(self, local_signals):
         energy_vector = torch.stack([subgraph(local_signals) for subgraph in self.subgraphs])
-        beta = torch.clamp(self.beta(local_signals), min = 1.2e-7)
-        return F.marginalize(self.M, energy_vector, beta)
+        beta_val = torch.clamp(self.beta(local_signals), min=self._MIN_BETA)
+        
+        return F.marginalize(self.M, energy_vector, beta_val)
+        
 
 
 class ProductNode(nn.Module):
