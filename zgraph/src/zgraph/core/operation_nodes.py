@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from . import functional as F
+from .leaf_nodes import ConstantNode
 
 class FactorNode(nn.Module):
     def __init__(self, M_matrix, subgraph_list, beta=None):
@@ -64,68 +65,3 @@ class ProductNode(nn.Module):
     def forward(self, local_signals):
         values = torch.stack([subgraph(local_signals) for subgraph in self.subgraphs], dim=0)
         return torch.prod(values, dim=0)
-
-
-class ConstantNode(nn.Module):
-    """The simplest physics model: a trainable constant (or constants)."""
-    def __init__(self, init_val=1.):
-        super().__init__()
-        
-        if torch.is_tensor(init_val):
-            tensor_val = init_val.clone().detach().to(dtype=torch.float32)
-        else:
-            tensor_val = torch.tensor(init_val, dtype=torch.float32)
-            
-        self.value = nn.Parameter(tensor_val)
-
-    def forward(self, signals):
-        return self.value
-    
-class SignalNode(nn.Module):
-    """A node that extracts specific signal indices from the input."""
-    def __init__(self, signal_index):
-        super().__init__()
-        try:
-            signal_index = int(signal_index)
-        except (TypeError, ValueError):
-            raise TypeError("signal_index must be an integer. Use SignalNodes() for multiple nodes.")
-        self.register_buffer('signal_index', torch.tensor(signal_index, dtype=torch.long))
-
-    def forward(self, local_signals):
-        return local_signals[self.signal_index]
-
-def SignalNodes(*indices):
-    """
-    Convenience factory for generating multiple SignalNodes simultaneously.
-    Usage: mu1, mu2 = SignalNodes(1, 2)
-    """
-    return [SignalNode(i) for i in indices]
-
-class LeafNode(nn.Module):
-    def __init__(self, energy_function, signal_indices=None, **initial_guesses):
-        """
-        Args:
-            energy_function (callable): The pure math equation.
-            signal_indices (list[int], optional): Hardcoded indices for early testing.
-            **initial_guesses: Trainable parameters.
-        """
-        super().__init__()
-        self.energy_function = energy_function
-        
-        indices_to_register = signal_indices if signal_indices is not None else []
-        self.register_buffer(
-            'signal_indices',
-            torch.tensor(indices_to_register, dtype=torch.long)
-        )
-        
-        # Dynamically register parameters
-        # Note: Might cause issues with torch.script but should be okay with torch.compile
-        self.theta = nn.ParameterDict({
-            key: nn.Parameter(torch.tensor(val, dtype=torch.float32))
-            for key, val in initial_guesses.items()
-        })
-
-    def forward(self, full_local_signals):
-        # Strictly vector input: (Channels,) -> scalar output: ()
-        sliced_signals = full_local_signals[self.signal_indices]
-        return self.energy_function(sliced_signals, **self.theta)
