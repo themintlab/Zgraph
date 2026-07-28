@@ -18,7 +18,7 @@ class BaseLeafNode(nn.Module):
     def forward(self, local_signals):
         raise NotImplementedError("Subclasses must implement forward()")
 
-class DynamicLeafNode(nn.Module):
+class DynamicLeafNode(BaseLeafNode):
     """
     Evaluation-only node that accepts arbitrary pure PyTorch functions.
     Ideal for rapid prototyping. Should NOT be used for performance-critical training.
@@ -30,22 +30,17 @@ class DynamicLeafNode(nn.Module):
             signal_indices (list[int], optional): Hardcoded indices for early testing.
             **constants: Constant parameters passed to the function.
         """
-        super().__init__()
+        super().__init__(signal_indices)
         self.energy_function = energy_function
-        
-        indices_to_register = signal_indices if signal_indices is not None else []
-        self.register_buffer(
-            'signal_indices',
-            torch.tensor(indices_to_register, dtype=torch.long)
-        )
         
         # We don't register them as Parameters because this is evaluation-only.
         # But we do need to pass them to the function, so we register them as buffers.
-        self.constant_keys = tuple(constants.keys())
+        self.constant_keys = []
         for key, val in constants.items():
             if not torch.is_tensor(val):
                 val = torch.tensor(val, dtype=torch.float32)
             self.register_buffer(key, val)
+            self.constant_keys.append(key)
 
     def forward(self, full_local_signals):
         # Strictly vector input: (Channels,) -> scalar output: ()
@@ -68,22 +63,24 @@ class ConstantNode(nn.Module):
     def forward(self, signals):
         return self.value
     
-class SignalNode(nn.Module):
-    """A node that extracts specific signal indices from the input."""
-    def __init__(self, signal_index):
-        super().__init__()
-        try:
-            signal_index = int(signal_index)
-        except (TypeError, ValueError):
-            raise TypeError("signal_index must be an integer. Use SignalNodes() for multiple nodes.")
-        self.register_buffer('signal_index', torch.tensor(signal_index, dtype=torch.long))
+class SignalNode(BaseLeafNode):
+    """A node that extracts specific signal indices from the input.
+    Can extract a single scalar signal or a vector of signals."""
+    def __init__(self, signal_indices):
+        if isinstance(signal_indices, int):
+            signal_indices = [signal_indices]
+        super().__init__(signal_indices)
 
     def forward(self, local_signals):
-        return local_signals[self.signal_index]
+        res = local_signals[self.signal_indices]
+        if len(self.signal_indices) == 1:
+            return res.squeeze(-1)
+        return res
 
-def SignalNodes(*indices):
-    """
-    Convenience factory for generating multiple SignalNodes simultaneously.
-    Usage: mu1, mu2 = SignalNodes(1, 2)
-    """
-    return [SignalNode(i) for i in indices]
+    def export_nodes(self):
+        """
+        Exports a list of individual scalar SignalNodes, one for each index.
+        Replaces the old SignalNodes() factory function.
+        Usage: T, mu1, mu2 = SignalNode([0, 1, 2]).export_nodes()
+        """
+        return [SignalNode(idx.item()) for idx in self.signal_indices]
