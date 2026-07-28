@@ -118,8 +118,9 @@ def test_batched_results_match_unbatched():
 
     for i, x in enumerate(xs):
         single_out = fg_single(x)
-        assert torch.allclose(batched_out[i], single_out, atol=1e-6), \
+        assert torch.allclose(batched_out[i], single_out, atol=1e-6), (
             f"Mismatch at row {i}: batched={batched_out[i]}, single={single_out}"
+        )
 
 
 def test_batched_constant_factor():

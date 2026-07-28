@@ -78,11 +78,9 @@ class FinalizedGraph:
         self._module = module
 
         # Capture buffers once — these represent fixed graph structure and must
-        # not change after finalization.
-        self._buffers = {
-            name: buf.detach()
-            for name, buf in module.named_buffers(recurse=True)
-        }
+        # not change after finalization. Buffers already have requires_grad=False
+        # so no detach is needed; we reference them directly to avoid copies.
+        self._buffers = dict(module.named_buffers(recurse=True))
 
         # Pure (params, x) → scalar function; exposed for functional transforms.
         def _stateless(params, x):
