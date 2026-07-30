@@ -73,8 +73,19 @@ signals = torch.tensor([0.2, 1.0])  # Unlabeled numerical input tensor
 free_energy = factor_node(signals)   # Fully differentiable scalar tensor output
 ```
 
+## 📓 Interactive Examples
+
+Explore interactive Jupyter notebooks running natively on Google Colab:
+
+- **2D Binary Equilibrium** (`binary.ipynb`): [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/themintlab/Zgraph/blob/main/zgraph/examples/binary.ipynb)
+- **3D Extruded Dimension** (`extruded_dimension.ipynb`): [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/themintlab/Zgraph/blob/main/zgraph/examples/extruded_dimension.ipynb)
+- **Stoichiometric Equilibrium** (`stoichiometric.ipynb`): [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/themintlab/Zgraph/blob/main/zgraph/examples/stoichiometric.ipynb)
+
+See [examples/README.md](examples/README.md) for detailed descriptions.
+
 ---
 
 ## 🔗 Application Layer
 
 For thermodynamic potential evaluation, materials modeling, phase diagram construction, and user-facing APIs, please see the [**Thermograph**](../thermograph) repository.
+
