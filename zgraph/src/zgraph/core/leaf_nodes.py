@@ -71,10 +71,10 @@ class SignalNode(nn.Module):
             signal_index = int(signal_index)
         except (TypeError, ValueError):
             raise TypeError("signal_index must be an integer. Use SignalNodes() for multiple nodes.")
-        self.register_buffer('signal_index', torch.tensor(signal_index, dtype=torch.long))
+        self.signal_index = signal_index
 
     def forward(self, local_signals):
-        return local_signals[self.signal_index]
+        return local_signals.select(0, self.signal_index)
 
 def SignalNodes(*indices):
     """
