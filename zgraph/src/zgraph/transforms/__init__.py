@@ -1,7 +1,7 @@
 from .calculus import legendre_transform
-from .compiler import finalize
+from .compiler import graph_to_function
 
 __all__ = [
     "legendre_transform",
-    "finalize",
+    "graph_to_function",
 ]

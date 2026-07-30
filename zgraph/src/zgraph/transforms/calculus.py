@@ -46,9 +46,9 @@ def legendre_transform(fcn, idx):
 
 
 
-import torch
-import torch.nn as nn
-from torch.func import functional_call, value_and_grad
+# import torch
+# import torch.nn as nn
+# from torch.func import functional_call, value_and_grad
 
 class LegendreTransformModule(nn.Module):
     """
