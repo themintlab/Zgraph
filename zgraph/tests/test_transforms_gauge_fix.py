@@ -6,7 +6,7 @@ from zgraph.transforms import gauge_fix
 
 def _build_simple_graph():
     x0, x1 = SignalNodes(0, 1)
-    return FactorNode([[1.0], [2.0]], [x0, x1], beta=1.0)
+    return FactorNode([[1.0, 2.0]], [x0, x1], beta=1.0)
 
 
 def test_gauge_fix_single_module_returns_projected_tuple():

@@ -1,5 +1,5 @@
 import torch
-import torch.nn as nn
+from zgraph.transforms.base import GraphTransform
 
 
 def gauge_fix(module, idx):
@@ -12,21 +12,12 @@ def gauge_fix(module, idx):
         idx: The indices of primal variables that will receive the uniform shift.
 
     Returns:
-        GaugeFixModule (or list/tuple of GaugeFixModule) returning
+        GaugeFix (or list/tuple of GaugeFix) returning
         (target_value, projected_coordinates).
     """
-    if isinstance(module, (list, tuple)):
-        modules = [gauge_fix(m, idx) for m in module]
-        return type(module)(modules)
+    return GraphTransform.map_factory(module, lambda m: GaugeFix(m, idx))
 
-    if isinstance(module, nn.Module):
-        return GaugeFixModule(module, idx)
-
-    raise TypeError(
-        "gauge_fix expects an nn.Module or a list/tuple of nn.Module instances."
-    )
-
-class GaugeFixModule(nn.Module):
+class GaugeFix(GraphTransform):
     """
     Analytically projects the state onto a target manifold (default 0.0) 
     by uniformly shifting a list of invariant indices.
@@ -35,34 +26,26 @@ class GaugeFixModule(nn.Module):
         tuple: (target_val, exact_coordinates) to maintain API consistency 
                with other thermodynamic graph modifiers.
     """
-    def __init__(self, base_model: nn.Module, shift_indices: list):
+    def __init__(self, base_model: GraphTransform, shift_indices: list):
         super().__init__()
         self.base_model = base_model
         self.register_buffer(
-            'idx_tensor', 
+            'idx', 
             torch.atleast_1d(torch.as_tensor(shift_indices, dtype=torch.long))
         )
 
-    def forward(self, primal_x: torch.Tensor, target_val: float = 0.0):
+    def _compute_transform(self, primal_x: torch.Tensor, target_val: float = 0.0):
         # 1. Evaluate the base model
-        raw_output = self.base_model(primal_x)
-        
-        # Handle tuple inputs if stacked directly after LegendreTransform
-        if isinstance(raw_output, tuple):
-            raw_energy = raw_output[0]
-        else:
-            raw_energy = raw_output
-            
+        raw_energy, coords_in = self.base_model(primal_x)
+                   
         # 2. Calculate the universal shift
-        shift_amount = target_val - raw_energy
+        target_tensor = torch.as_tensor(target_val, dtype=primal_x.dtype, device=primal_x.device).squeeze()
+        shift_amount = target_tensor - raw_energy
         
-        # 3. Clone to preserve functional purity and Autograd history
-        idx_dev = self.get_buffer("idx_tensor").to(device=primal_x.device)
-        exact_x = primal_x.clone()
-        exact_x[idx_dev] += shift_amount
+        # Shift the incoming coordinate state to preserve transform composability.
+        exact_x = coords_in.clone()
+        idx = self.get_buffer("idx")
+        exact_x[idx] += shift_amount
         
         # 4. Return consistent tuple: (Scalar Value, Coordinate Tensor)
-        # We ensure target_val is a tensor so it plays nicely with PyTorch ops
-        target_tensor = torch.as_tensor(target_val, dtype=primal_x.dtype, device=primal_x.device)
-        
         return target_tensor, exact_x
