@@ -1,4 +1,5 @@
 from .core import FactorNode, ProductNode, BaseLeafNode, DynamicLeafNode, ConstantNode, SignalNode, SignalNodes
+from .transforms import gauge_fix, legendre_transform
 
 __all__ = [
     "FactorNode",
@@ -7,5 +8,7 @@ __all__ = [
     "SignalNode",
     "SignalNodes",
     "BaseLeafNode",
-    "DynamicLeafNode"
+    "DynamicLeafNode",
+    "gauge_fix",
+    "legendre_transform",
 ]
