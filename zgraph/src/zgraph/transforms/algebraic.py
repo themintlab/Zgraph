@@ -79,3 +79,27 @@ class GF_and_LT(nn.Module):
             phi, coords = F.apply_legendre(coords, phi, grad, self.lt_idx)
 
         return phi, coords
+
+
+# --- Helper Functions for Container Mapping ---
+
+def apply_transform(transform_class, modules, *args, **kwargs):
+    """Applies a transform class to a single module or a container of modules."""
+    if isinstance(modules, (list, tuple)):
+        return type(modules)(apply_transform(transform_class, m, *args, **kwargs) for m in modules)
+    if isinstance(modules, dict):
+        return {k: apply_transform(transform_class, v, *args, **kwargs) for k, v in modules.items()}
+    return transform_class(modules, *args, **kwargs)
+
+def gauge_fix(modules, shift_indices, target_val=0.0):
+    """Maps GaugeFix over a module or container of modules."""
+    return apply_transform(GaugeFix, modules, shift_indices, target_val=target_val)
+
+def legendre_transform(modules, transform_indices):
+    """Maps LegendreTransform over a module or container of modules."""
+    return apply_transform(LegendreTransform, modules, transform_indices)
+
+def gf_and_lt(modules, gauge_indices=None, legendre_indices=None, target_val=0.0):
+    """Maps GF_and_LT over a module or container of modules."""
+    return apply_transform(GF_and_LT, modules, gauge_indices=gauge_indices, legendre_indices=legendre_indices, target_val=target_val)
+
