@@ -1,14 +1,9 @@
-from .base import GraphAdapter, GraphTransform
-from .legendre_transform import legendre_transform, LegendreTransformModule
+from .algebraic import GaugeFix, LegendreTransform, GF_and_LT
 from .compiler import graph_to_function
-from .gauge_fix import GaugeFix, gauge_fix
 
 __all__ = [
-    "GraphTransform",
-    "GraphAdapter",
-    "legendre_transform",
-    "LegendreTransformModule",
-    "graph_to_function",
-    "gauge_fix",
     "GaugeFix",
+    "LegendreTransform",
+    "GF_and_LT",
+    "graph_to_function",
 ]

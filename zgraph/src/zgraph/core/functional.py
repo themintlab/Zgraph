@@ -28,3 +28,35 @@ def marginalize(M_matrix, w_vector, beta = 1.0):
 
     # Calculate the partition function / free energy as a scalar.
     return beta * torch.logsumexp(energy_landscape / beta, dim=-1)
+
+def apply_gauge_shift(primal_x: torch.Tensor, raw_phi: torch.Tensor, 
+                      shift_idx: torch.Tensor, target_val: torch.Tensor):
+    """
+    Pure subfunction to apply an invariant shift.
+    Takes the evaluated energy (phi) and applies the exact shift to coordinates.
+    """
+    if shift_idx.numel() == 0:
+        return primal_x
+        
+    shift_amount = target_val - raw_phi
+    shifted_x = primal_x.clone()
+    shifted_x[shift_idx] += shift_amount
+    
+    return shifted_x
+
+def apply_legendre(primal_x: torch.Tensor, raw_phi: torch.Tensor, 
+                   full_grad: torch.Tensor, lt_idx: torch.Tensor):
+    """
+    Pure subfunction to compute the multivariate Legendre dual.
+    Takes the evaluated energy (phi) and gradients, and constructs the dual state.
+    """
+    if lt_idx.numel() == 0:
+        return raw_phi, primal_x
+        
+    # Use torch.dot since batching is deferred to vmap/torch.compile
+    psi = raw_phi - torch.dot(primal_x[lt_idx], full_grad[lt_idx])
+    
+    dual_x = primal_x.clone()
+    dual_x[lt_idx] = full_grad[lt_idx]
+    
+    return psi, dual_x
