@@ -31,6 +31,14 @@ If you are instructed to modify `zgraph`, you **MUST** strictly adhere to the fo
    All inputs and outputs between `zgraph` modules must be `torch.Tensor` types. No custom classes, tuples of mixed types, or optional arguments are permitted in the `forward` signature.
    - *Reason:* `torch.compile` traces continuous streams of tensor operations. Non-tensor objects force a return to the Python interpreter (a "graph break"), destroying performance.
 
+5. **Computational Efficiency (No Python Loops):**
+   **Never** use Python `for` or `while` loops over spatial dimensions, batches, or microstates inside a `forward()` pass. All operations must be vectorized using native PyTorch tensor operations, broadcasting, or `vmap`.
+   - *Reason:* Python loops are extremely slow and defeat the purpose of using PyTorch. ZGraph is designed for high-throughput batch evaluations; loops cause a massive bottleneck.
+
+6. **Clean Code & Strict Typing:**
+   All functions and methods must use explicit type hints from the built-in `typing` module (e.g., `List`, `Optional`, `Tuple`, `Union`).
+   - *Reason:* Strict typing ensures that downstream wrappers (like Thermograph), IDEs, and future AI agents can parse and safely interact with the math engine without ambiguity.
+
 ---
 
 ## The `**kwargs` Parameter Standard
