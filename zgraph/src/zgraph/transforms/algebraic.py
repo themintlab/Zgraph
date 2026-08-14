@@ -35,19 +35,8 @@ def gauge_fix(system_model: Any, x: torch.Tensor, shift_indices: List[int], targ
     shift_idx = torch.atleast_1d(torch.as_tensor(shift_indices, dtype=torch.long, device=x.device))
     return F.apply_gauge_shift(x, phi, shift_idx, target_tensor)
 
-# --- Helper Functions for Container Mapping ---
+from torch.utils._pytree import tree_map
 
-def apply_transform(transform_class: type, modules: Union[T, Dict[Any, T], List[T], Tuple[T, ...]], *args: Any, **kwargs: Any) -> Union[nn.Module, Dict[Any, nn.Module], List[nn.Module], Tuple[nn.Module, ...]]:
-    """Applies a transform class to a single module or a container of modules."""
-    if isinstance(modules, (list, tuple)):
-        # Correctly instantiating the tuple or list class
-        return type(modules)(apply_transform(transform_class, m, *args, **kwargs) for m in modules) # type: ignore
-    if isinstance(modules, dict):
-        return {k: apply_transform(transform_class, v, *args, **kwargs) for k, v in modules.items()}
-    return transform_class(modules, *args, **kwargs)
-
-
-def legendre_transform(modules: Union[T, Dict[Any, T], List[T], Tuple[T, ...]], transform_indices: List[int]) -> Union[nn.Module, Dict[Any, nn.Module], List[nn.Module], Tuple[nn.Module, ...]]:
-    """Maps LegendreTransform over a module or container of modules."""
-    return apply_transform(LegendreTransform, modules, transform_indices)
-
+def legendre_transform(modules: Any, transform_indices: List[int]) -> Any:
+    """Maps LegendreTransform over an arbitrary PyTree of modules."""
+    return tree_map(lambda m: LegendreTransform(m, transform_indices), modules)

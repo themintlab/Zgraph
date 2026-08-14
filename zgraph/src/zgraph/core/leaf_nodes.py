@@ -77,9 +77,16 @@ class SignalNode(nn.Module):
     def forward(self, local_signals: torch.Tensor) -> torch.Tensor:
         return local_signals.select(0, self.signal_index)
 
-def SignalNodes(*indices: int) -> List[SignalNode]:
+from torch.utils._pytree import tree_map
+
+def SignalNodes(*indices: Any) -> Any:
     """
-    Convenience factory for generating multiple SignalNodes simultaneously.
-    Usage: mu1, mu2 = SignalNodes(1, 2)
+    Convenience factory for generating SignalNodes.
+    Accepts flat args: mu1, mu2 = SignalNodes(1, 2)
+    Or a PyTree: nodes = SignalNodes({'T': 0, 'mu': [1, 2]})
     """
-    return [SignalNode(i) for i in indices]
+    if len(indices) == 1 and isinstance(indices[0], (list, dict, tuple)):
+        pytree = indices[0]
+    else:
+        pytree = indices
+    return tree_map(lambda i: SignalNode(int(i)), pytree)

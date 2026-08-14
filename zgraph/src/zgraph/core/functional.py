@@ -50,7 +50,7 @@ def apply_gauge_shift(primal_x: torch.Tensor, raw_phi: torch.Tensor,
         
     shift_amount = target_val - raw_phi
     shifted_x = primal_x.clone()
-    shifted_x[shift_idx] += shift_amount
+    shifted_x[..., shift_idx] += shift_amount.unsqueeze(-1)
     
     return shifted_x
 
