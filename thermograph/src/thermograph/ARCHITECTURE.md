@@ -20,10 +20,9 @@ All methods that return Pandas DataFrames or human-readable mappings (e.g., `get
 
 ---
 
-## 🤖 AI AGENT DIRECTIVES
+## Core Design Principles
 
-**ATTENTION ALL AI CODING ASSISTANTS & DEVELOPERS:**
-If you are instructed to modify `thermograph`, you **MUST** adhere to the following rules:
+All developers and contributors modifying `thermograph` MUST adhere to the following rules:
 
 1. **Domain Abstraction Only:** `thermograph` is a pure application wrapper around `zgraph`. Do not implement complex tensor math routines directly in `thermograph`. If a new mathematical transformation is needed, implement it in `zgraph` and call it from `thermograph`.
 2. **Immutable Engines:** Do not attempt to modify the `self.engine` (which is a `zgraph` `nn.Module`) in place. If the user changes a phase's physical model, you must fully re-compile and replace the `.engine` attribute.

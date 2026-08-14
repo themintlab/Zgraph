@@ -4,14 +4,13 @@
 
 To ensure speed and portability across platforms and hardware architectures all code within this package MUST adhere to the following strict architectural directives. This will ensure robust compilation via `torch.compile`. 
 
-`zgraph` is purely mathematical and has no knowledge of the application. All labelling of variables, modules, graphs, etc., are relegated to independent application layers (e.g., `thermograph`, `trafficgraph`).
+`zgraph` is purely mathematical and has no knowledge of the application. All labelling of variables, modules, graphs, etc., are relegated to independent application layers.
 
 ---
 
-## 🤖 AI AGENT DIRECTIVES
+## Core Design Principles
 
-**ATTENTION ALL AI CODING ASSISTANTS & DEVELOPERS:**
-If you are instructed to modify `zgraph`, you **MUST** strictly adhere to the following rules to prevent breaking the PyTorch 2.0 native `vmap` and `torch.compile` compatibility.
+To prevent breaking PyTorch 2.0 native `vmap` and `torch.compile` compatibility, all contributors must strictly adhere to the following rules:
 
 1. **Pure Math, No Python Objects:**
    **No standard Python objects (strings, lists of strings, dictionaries) or Python control flow (`if` statements based on string matching) may exist inside `zgraph` `nn.Module` classes or their `forward()` passes.**
