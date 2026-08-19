@@ -1,10 +1,25 @@
 # ZGraph Architecture & Design Philosophy
 
-`zgraph` is an auto-differentiable linear algebra library designed to perform hyper-dimensional LogSumExp contractions and microstate energy calculations using PyTorch.
+`zgraph` is fundamentally a **Probabilistic Graphical Model (PGM)** engine designed to simulate log-categorical distributions and thermodynamic ensembles. It performs hyper-dimensional Softmin/LogSumExp contractions and calculates microstate energies using PyTorch.
 
-To ensure speed and portability across platforms and hardware architectures all code within this package MUST adhere to the following strict architectural directives. This will ensure robust compilation via `torch.compile`. 
+To ensure speed and portability across platforms and hardware architectures, all code within this package MUST adhere to the following strict architectural directives. This ensures robust compilation via `torch.compile` and seamless compatibility with `torch.func`. 
 
-`zgraph` is purely mathematical and has no knowledge of the application. All labelling of variables, modules, graphs, etc., are relegated to independent application layers.
+`zgraph` is purely mathematical and has no knowledge of the application. All labelling of variables, modules, and physical significance (e.g., mapping gradients to CALPHAD composition tie-lines) are relegated to independent domain packages (like `thermograph`).
+
+---
+
+## Architectural Division
+
+The `zgraph` codebase is strictly divided into three distinct categories based on their mathematical role:
+
+1. **`core/` (The PGM Forward Pass)**
+   Contains the structural math primitives (`FactorNode`, `ProductNode`, `marginalize`). These define the topology of the graphical model. They execute the forward pass to compute either the collapsed macroscopic state (the partition function via `.forward()`) or the latent microscopic distribution (the logits via `.logits()`).
+
+2. **`transforms/` (Graph-to-Graph Operators)**
+   Contains functional operators (like `legendre_transform`) that reshape the topology or coordinates. A transform takes a graph (`nn.Module`) and returns a *new* graph. They do not find solutions; they alter the geometry of the problem analytically.
+
+3. **`solvers/` (Execution Routines)**
+   Contains algorithmic search functions (like `extract_decision_boundary` and `gauge_fix`). Solvers do not return graphs. Instead, they take a **callable function** (e.g., a pre-batched model or logits method) and an **input domain tensor**, and execute algorithmic searches (e.g., finding roots, crossovers, or projecting onto level-sets) over the evaluated landscape. They return numerical sub-domain features (shifted coordinates, boundary indices). They explicitly do **not** take responsibility for `vmap` or `compile` mapping; that is the domain layer's responsibility.
 
 ---
 
