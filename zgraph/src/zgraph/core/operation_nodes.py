@@ -56,17 +56,26 @@ class FactorNode(nn.Module):
             
         self.subgraphs = nn.ModuleList(subgraph_list)
 
-    def build_w_vector(self, signals: torch.Tensor) -> torch.Tensor:
-        return torch.stack([subgraph(signals) for subgraph in self.subgraphs])
-    
     def logits(self, signals: torch.Tensor) -> torch.Tensor:
         """
-        The Logits / Uncollapsed Vector.
+        The Logits / Uncollapsed Energy Vector.
+        Evaluates the subgraphs to build the cluster inputs (w), and maps them to microstates via M.
         Returns a vector of size (num_microstates).
         """
-        w = self.build_w_vector(signals)
+        w = torch.stack([subgraph(signals) for subgraph in self.subgraphs], dim=-1)
         return torch.matmul(self.M, w)
     
+    def probabilities(self, signals: torch.Tensor) -> torch.Tensor:
+        """
+        The Local Marginal Probabilities (SoftMin weights).
+        Returns a normalized vector of size (num_microstates) representing the probability/weight of each state.
+        """
+        energy_landscape = self.logits(signals)
+        beta_val = torch.clamp(self.beta(signals), min=self._MIN_BETA)
+        
+        # Softmax applies the exact exponential weighting used in the partition function
+        return torch.softmax(energy_landscape / beta_val, dim=-1)
+
     def forward(self, local_signals: torch.Tensor) -> torch.Tensor:
         """
         The Strict Axiom: The Partition Function Collapse.
