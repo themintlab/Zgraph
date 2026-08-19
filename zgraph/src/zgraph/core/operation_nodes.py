@@ -56,11 +56,25 @@ class FactorNode(nn.Module):
             
         self.subgraphs = nn.ModuleList(subgraph_list)
 
+    def build_w_vector(self, signals: torch.Tensor) -> torch.Tensor:
+        return torch.stack([subgraph(signals) for subgraph in self.subgraphs])
+    
+    def logits(self, signals: torch.Tensor) -> torch.Tensor:
+        """
+        The Logits / Uncollapsed Vector.
+        Returns a vector of size (num_microstates).
+        """
+        w = self.build_w_vector(signals)
+        return torch.matmul(self.M, w)
+    
     def forward(self, local_signals: torch.Tensor) -> torch.Tensor:
-        energy_vector = torch.stack([subgraph(local_signals) for subgraph in self.subgraphs])
+        """
+        The Strict Axiom: The Partition Function Collapse.
+        Returns Rank 0 Tensor (Scalar).
+        """
+        energy_landscape = self.logits(local_signals)
         beta_val = torch.clamp(self.beta(local_signals), min=self._MIN_BETA)
-        
-        return F.marginalize(self.M, energy_vector, beta_val)
+        return F.marginalize(energy_landscape, beta_val)
         
 
 class ProductNode(nn.Module):
