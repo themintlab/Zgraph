@@ -1,13 +1,12 @@
-import torch
-import torch.nn as nn
+import equinox as eqx
 
-def save_zgraph(node: nn.Module, path: str):
+def save_zgraph(node: eqx.Module, path: str):
     """
-    Saves the state_dict of an uncompiled ZGraph module safely.
+    Saves a ZGraph module to disk using equinox serialization.
     """
-    torch.save(node.state_dict(), path)
+    eqx.tree_serialise_leaves(path, node)
 
-def load_zgraph(node_blueprint: nn.Module, path: str, map_location: str | torch.device = "cpu"):
+def load_zgraph(node_blueprint: eqx.Module, path: str):
     """
     Loads weights into a pure blueprint module.
     Remember to apply transforms (vmap, compile) dynamically after loading.
@@ -15,12 +14,8 @@ def load_zgraph(node_blueprint: nn.Module, path: str, map_location: str | torch.
     Args:
         node_blueprint: Uncompiled module instance with matching architecture.
         path: Path to a checkpoint created by ``save_zgraph``.
-        map_location: Device mapping for ``torch.load``. Defaults to ``"cpu"``
-            to keep loads portable across machines without GPU availability.
     """
-    state_dict = torch.load(path, map_location=map_location)
-    node_blueprint.load_state_dict(state_dict)
-    return node_blueprint
+    return eqx.tree_deserialise_leaves(path, node_blueprint)
 
 # Backward-compatibility aliases
 save_znet = save_zgraph

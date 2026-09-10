@@ -1,10 +1,10 @@
-import torch
+import jax
 from typing import Tuple, Callable, List
 import zgraph.solvers.functional as F
 
-def extract_decision_boundary(batched_logits_fn: Callable[[torch.Tensor], torch.Tensor], 
-                              sweep_signals: torch.Tensor,
-                              ranks: Tuple[int, int] = (0, 1)) -> Tuple[torch.Tensor, torch.Tensor]:
+def extract_decision_boundary(batched_logits_fn: Callable[[jax.Array], jax.Array], 
+                              sweep_signals: jax.Array,
+                              ranks: Tuple[int, int] = (0, 1)) -> Tuple[jax.Array, jax.Array]:
     """
     Universally finds the manifold where two competing states in a categorical 
     PGM distribution cross (w_A == w_B).

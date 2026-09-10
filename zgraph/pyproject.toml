@@ -12,7 +12,7 @@ authors = [
 readme = "README.md"
 license = { file="LICENSE" }
 requires-python = ">=3.9"
-keywords = ["thermodynamics", "tensor-graph", "pytorch", "materials-science"]
+keywords = ["thermodynamics", "tensor-graph", "jax", "materials-science"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -26,7 +26,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Mathematics",
 ]
 dependencies = [
-    "torch",
+    "jax",
+    "jaxlib",
+    "equinox",
 ]
 
 [project.urls]
