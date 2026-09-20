@@ -6,7 +6,7 @@ Welcome to the `Zgraph` monorepo. This repository contains a suite of tools for 
 
 ## 📦 Packages
 
-- **[`zgraph`](./zgraph):** The core physics-free tensor-graph math engine. It provides high-performance, differentiable LogSumExp contractions and factor graph evaluation natively in PyTorch 2.0 (`vmap`, `torch.compile`).
+- **[`zgraph`](./zgraph):** The core physics-free tensor-graph math engine. It provides high-performance, differentiable LogSumExp contractions and factor graph evaluation natively in JAX/Equinox (`vmap`, `jax.jit`).
 - **[`thermograph`](./thermograph):** The thermodynamic application layer built on top of `zgraph`. It maps human-readable CALPHAD and statistical mechanics concepts (elements, phases) down to the unlabeled math engine.
 
 ### Future Expansions
