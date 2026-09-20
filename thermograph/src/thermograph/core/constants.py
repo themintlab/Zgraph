@@ -5,3 +5,6 @@ KB_R = 8.314462618     # J/(mol*K)
 
 # Default simulation settings
 DEFAULT_KB = KB_R
+
+# Numerical stability thresholds
+SAFE_MIN_T = 1e-10  # Kelvin
