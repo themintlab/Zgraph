@@ -12,7 +12,7 @@ authors = [
 readme = "README.md"
 license = { file="LICENSE" }
 requires-python = ">=3.9"
-keywords = ["thermodynamics", "sgte", "phase-diagrams", "materials-science", "pytorch"]
+keywords = ["thermodynamics", "sgte", "phase-diagrams", "materials-science", "jax"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -26,7 +26,8 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Chemistry",
 ]
 dependencies = [
-    "torch",
+    "jax",
+    "equinox",
     "zgraph",
 ]
 

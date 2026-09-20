@@ -2,7 +2,7 @@
 
 **A hardware-accelerated, fully differentiable, physics-free soft-tropical tensor graph engine.**
 
-`zgraph` is a low-level, high-performance numerical kernel engine built natively on PyTorch 2.0 (`torch.compile`, `vmap`, `torch.func`). It reduces complex high-dimensional factor graph contractions, soft-minimum selections, and state space reductions into homogeneous chains of parameterized $\text{LogSumExp}$ matrix operations.
+`zgraph` is a low-level, high-performance numerical kernel engine built natively on JAX and Equinox (`jax.jit`, `jax.vmap`, `jax.grad`). It reduces complex high-dimensional factor graph contractions, soft-minimum selections, and state space reductions into homogeneous chains of parameterized $\text{LogSumExp}$ matrix operations.
 
 ---
 
@@ -10,7 +10,7 @@
 
 `zgraph` is **strictly domain-agnostic and physics-free**.
 
-The engine operates exclusively on unlabeled numerical tensors (`torch.Tensor`). It contains zero domain-specific logic, zero unit conversions, and zero Python object overhead (such as string matching or dictionary lookups inside `forward` loops). 
+The engine operates exclusively on unlabeled numerical tensors (`jax.Array`). It contains zero domain-specific logic, zero unit conversions, and zero Python object overhead (such as string matching or dictionary lookups inside loops). 
 
 All physical nomenclature, thermodynamic ensembles, chemical potential mappings ($\mu$), state variables ($T, P$), phase definitions, and human-readable metadata are relegated to higher-level application layers such as [**Thermograph**](../thermograph).
 
@@ -19,9 +19,9 @@ All physical nomenclature, thermodynamic ensembles, chemical potential mappings 
 | Feature / Responsibility | **`zgraph`** (Math Engine) | **`thermograph`** (Application Layer) |
 | :--- | :--- | :--- |
 | **Domain Scope** | Abstract factor graphs, soft-tropical semirings | Thermodynamics, statistical mechanics, CALPHAD |
-| **Data Types** | Unlabeled PyTorch Tensors (`torch.Tensor`) | Named variables, species, phases, physical units |
+| **Data Types** | Unlabeled JAX Arrays (`jax.Array`) | Named variables, species, phases, physical units |
 | **Core Operations** | Matrix contraction, parameterized $\text{LogSumExp}$ | Ensemble definitions $(T, P, \mu)$, driving forces |
-| **Optimization Target** | `torch.compile`, C++/CUDA fusion, `vmap` vectorization | Phase equilibrium, convex hulls, phase-field coupling |
+| **Optimization Target** | `jax.jit`, XLA compilation, `jax.vmap` vectorization | Phase equilibrium, convex hulls, phase-field coupling |
 | **Graph Mutations** | Structurally immutable execution graphs | Dynamic model assembly & configuration |
 
 ---
@@ -29,7 +29,7 @@ All physical nomenclature, thermodynamic ensembles, chemical potential mappings 
 ## ⚡ Key Pillars
 
 ### 1. Physics-Free Pure Tensor Math
-By enforcing pure tensor-only signatures (`forward(local_signals: Tensor) -> Tensor`), `zgraph` guarantees zero graph breaks during JIT compilation. Nodes do not store string names, metadata dicts, or conditional Python logic.
+By enforcing pure tensor-only signatures (`__call__(local_signals: Array) -> Array`), `zgraph` guarantees zero graph breaks during JIT compilation. Nodes do not store string names, metadata dicts, or conditional Python logic.
 
 ### 2. Soft Tropical Tensor Algebra
 Partition functions and soft-minimum energy landscapes are formulated as soft-tropical tensor contractions over factor matrices $\mathbf{M}$ and dynamic weight vectors $\mathbf{w}(\mathbf{x})$:
@@ -37,10 +37,10 @@ $$\mathcal{F}(\mathbf{x}) = \beta \cdot \text{LogSumExp}\left( \frac{\mathbf{M} 
 where $\beta$ controls the smoothing transition between exact hard-minimum selection ($\beta \to 0^+$) and soft statistical integration.
 
 ### 3. Hardware-Native Execution
-Engine nodes (`FactorNode`, `BaseLeafNode`, `DynamicLeafNode`, `SignalNode`) are engineered to compile seamlessly via `torch.compile` into fused C++/CUDA kernels. Vectorization across spatial grids or multi-dimensional parameter batches is achieved without overhead using PyTorch's `vmap`.
+Engine nodes (`FactorNode`, `BaseLeafNode`, `DynamicLeafNode`, `SignalNode`) are engineered to compile seamlessly via `jax.jit` into fused XLA kernels. Vectorization across spatial grids or multi-dimensional parameter batches is achieved without overhead using JAX's `vmap`.
 
 ### 4. End-to-End Differentiability
-Built for direct integration with `torch.func`, `zgraph` provides exact analytical Jacobians and Hessians ($\nabla_\mathbf{x} \mathcal{F}$, $\nabla^2_\mathbf{x} \mathcal{F}$) for gradient-based optimization, continuous sensitivity analysis, and autograd-driven parameter estimation.
+Built for direct integration with JAX's autodiff engine, `zgraph` provides exact analytical Jacobians and Hessians ($\nabla_\mathbf{x} \mathcal{F}$, $\nabla^2_\mathbf{x} \mathcal{F}$) for gradient-based optimization, continuous sensitivity analysis, and autograd-driven parameter estimation.
 
 ---
 
@@ -49,11 +49,11 @@ Built for direct integration with `torch.func`, `zgraph` provides exact analytic
 At the `zgraph` level, models are built using purely mathematical node abstractions:
 
 ```python
-import torch
+import jax.numpy as jnp
 import zgraph as zg
 
 # 1. Define configuration matrix M (Microstates x Clusters)
-M_matrix = torch.tensor([
+M_matrix = jnp.array([
     [1.0, 0.0],
     [0.0, 1.0],
     [0.5, 0.5]
@@ -69,7 +69,7 @@ subgraphs = [
 factor_node = zg.FactorNode(M_matrix=M_matrix, subgraph_list=subgraphs, beta=1.0)
 
 # 4. Pure tensor input evaluation
-signals = torch.tensor([0.2, 1.0])  # Unlabeled numerical input tensor
+signals = jnp.array([0.2, 1.0])  # Unlabeled numerical input tensor
 free_energy = factor_node(signals)   # Fully differentiable scalar tensor output
 ```
 

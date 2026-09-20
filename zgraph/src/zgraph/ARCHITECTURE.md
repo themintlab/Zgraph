@@ -29,7 +29,7 @@ To prevent breaking JAX/Equinox native `vmap` and `jax.jit` compatibility, all c
 
 1. **Pure Math, No Python Objects:**
    **No standard Python objects (strings, lists of strings, dictionaries) or Python control flow (`if` statements based on string matching) may exist inside `zgraph` `eqx.Module` classes or their `__call__()` passes.**
-   - *Reason:* TorchScript and `jax.jit` require strict static typing. Dictionaries or string parsing cause graph breaks and kernel compilation failures. All domain knowledge (names, metadata) must remain in the application layer.
+   - *Reason:* `jax.jit` requires strict static typing. Dictionaries or string parsing cause graph breaks and kernel compilation failures. All domain knowledge (names, metadata) must remain in the application layer.
 
 2. **Structural Immutability:**
    `zgraph` routing nodes (e.g., `FactorNode`) are structurally immutable after creation. You may **NOT** include methods that mutate the underlying `list or tuple (within eqx.Module)` or swap subgraphs in-place (e.g., `self.subgraphs[2] = new_model`).
@@ -39,10 +39,10 @@ To prevent breaking JAX/Equinox native `vmap` and `jax.jit` compatibility, all c
    - **Static indices and constant tensors** (e.g., `signal_indices`, gauge target values) MUST be registered as integer/float tensor buffers using `eqx.field(static=True) for non-arrays or just assign as standard JAX array`.
    - **Learnable constants** must use `standard JAX arrays (Equinox treats all arrays as parameters unless marked static)`.
    - **Never** store lists of integers or floats as raw attributes (e.g., `self.indices = [0, 1]`) if they are used in the __call__() pass. 
-   - *Reason:* Doing so ensures that when a user calls `jax.device_put(model)`, all buffers and parameters seamlessly migrate to the GPU. Python lists are ignored by `.to()` and will trigger a device mismatch crash.
+   - *Reason:* Doing so ensures that when a user calls `jax.device_put(model)`, all buffers and parameters seamlessly migrate to the GPU. Python lists are ignored by JAX device transfer and will trigger a device mismatch crash.
 
 4. **Tensor-Only Communication:**
-   All inputs and outputs between `zgraph` modules must be `jax.Array` types. No custom classes, tuples of mixed types, or optional arguments are permitted in the `forward` signature.
+   All inputs and outputs between `zgraph` modules must be `jax.Array` types. No custom classes, tuples of mixed types, or optional arguments are permitted in the `__call__` signature.
    - *Reason:* `jax.jit` traces continuous streams of tensor operations. Non-tensor objects force a return to the Python interpreter (a "graph break"), destroying performance.
 
 5. **Computational Efficiency (No Python Loops):**

@@ -18,9 +18,9 @@ All mathematical evaluation, tensor contraction, soft-minimum selection, and aut
 | :--- | :--- | :--- |
 | **Primary Focus** | Domain semantics, CALPHAD models, phase equilibrium | Soft-tropical tensor algebra, kernel execution |
 | **Knowledge** | **Knows physics**, elements, phases, units | **Physics-free**, pure tensor math |
-| **Data Representation** | Human-readable named objects, DataFrames, signals | Unlabeled PyTorch Tensors (`torch.Tensor`) |
-| **Execution Role** | Graph compilation, index linker, envelope swapping | Tensor contraction, `torch.compile` JIT kernels |
-| **Introspection** | Offline inspection (`detach().cpu()`), plots | High-throughput autograd & Hessian calculation |
+| **Data Representation** | Human-readable named objects, DataFrames, signals | Unlabeled JAX Arrays (`jax.Array`) |
+| **Execution Role** | Graph compilation, index linker, envelope swapping | Tensor contraction, `jax.jit` kernels |
+| **Introspection** | Offline inspection (`np.array()`), plots | High-throughput autodiff & Hessian calculation |
 
 ---
 
@@ -30,10 +30,10 @@ All mathematical evaluation, tensor contraction, soft-minimum selection, and aut
 `thermograph` maps complex thermodynamic systems (such as SGTE unary databases, Redlich-Kister interaction polynomials, or sublattice models) into structured input channel signal vectors. It compiles physical equations into lightweight `zgraph` factor and leaf nodes.
 
 ### 2. Envelope Replacement (Safe Physics Hot-Swapping)
-Because `zgraph` tensor execution graphs are strictly immutable to maintain `torch.compile` JIT optimization, `thermograph` handles physical model changes (e.g., changing from an ideal solution to a sub-regular solution model) by rebuilding and replacing the lightweight `zgraph` node envelopes without compromising kernel stability.
+Because `zgraph` tensor execution graphs are strictly immutable to maintain `jax.jit` optimization, `thermograph` handles physical model changes (e.g., changing from an ideal solution to a sub-regular solution model) by rebuilding and replacing the lightweight `zgraph` node envelopes without compromising kernel stability.
 
 ### 3. Offline Introspection
-All user-facing diagnostic tools and DataFrame exports (e.g., microstate configuration matrices, phase fraction summaries) safely detach from the PyTorch computation tree via `.detach().cpu()`, enabling rich interactive analysis without breaking autograd backpropagation.
+All user-facing diagnostic tools and DataFrame exports (e.g., microstate configuration matrices, phase fraction summaries) safely convert from JAX arrays via `np.array()`, enabling rich interactive analysis without breaking autodiff.
 
 ---
 
@@ -42,7 +42,7 @@ All user-facing diagnostic tools and DataFrame exports (e.g., microstate configu
 Using `thermograph` to construct and evaluate thermodynamic phase models backed by `zgraph`:
 
 ```python
-import torch
+import jax.numpy as jnp
 import thermograph as tg
 
 # 1. Define human-readable thermodynamic system (e.g., Binary System)
