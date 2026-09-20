@@ -4,48 +4,26 @@ import equinox as eqx
 from typing import Optional, Union, List, Callable, Dict, Any, Tuple
 from jax.tree_util import tree_map
 
-class BaseLeafNode(eqx.Module):
+class TemplateNode(eqx.Module):
     """
-    Abstract base class for all standard leaf nodes in ZGraph.
-    Subclasses MUST explicitly define their mathematical __call__() method.
+    A purely mathematical leaf node that executes a static JAX function over registered tensor parameters.
+    Designed to serve as an anonymous block for domain-specific kernels without violating zgraph's pure-tensor constraints.
     """
+    params: Any
+    kernel_fn: Callable = eqx.field(static=True)
     signal_indices: jax.Array
 
-    def __init__(self, signal_indices: Optional[List[int]] = None):
-        indices_to_register = signal_indices if signal_indices is not None else []
-        self.signal_indices = jnp.array(indices_to_register, dtype=jnp.int32)
+    def __init__(self, kernel_fn: Callable, params: Any, signal_indices: Optional[List[int]] = None):
+        if isinstance(params, dict):
+            raise TypeError("Dictionaries are forbidden in zgraph equinox modules. Pass arrays or tuples instead.")
+        self.kernel_fn = kernel_fn
+        self.params = params
+        indices = signal_indices if signal_indices is not None else []
+        self.signal_indices = jnp.array(indices, dtype=jnp.int32)
 
     def __call__(self, local_signals: jax.Array) -> jax.Array:
-        raise NotImplementedError("Subclasses must implement __call__()")
-
-class DynamicLeafNode(BaseLeafNode):
-    """
-    Evaluation-only node that accepts arbitrary pure JAX functions.
-    Ideal for rapid prototyping. Should NOT be used for performance-critical training.
-    """
-    energy_function: Callable = eqx.field(static=True)
-    constants: Dict[str, jax.Array]
-
-    def __init__(self, energy_function: Callable[..., jax.Array], signal_indices: Optional[List[int]] = None, **constants: Any):
-        """
-        Args:
-            energy_function (callable): The pure math equation.
-            signal_indices (list[int], optional): Hardcoded indices for early testing.
-            **constants: Constant parameters passed to the function.
-        """
-        super().__init__(signal_indices)
-        self.energy_function = energy_function
-        
-        self.constants = {}
-        for key, val in constants.items():
-            if not isinstance(val, jax.Array):
-                val = jnp.array(val, dtype=jnp.float32)
-            self.constants[key] = val
-
-    def __call__(self, full_local_signals: jax.Array) -> jax.Array:
-        # Strictly vector input: (Channels,) -> scalar output: ()
-        sliced_signals = full_local_signals[self.signal_indices]
-        return self.energy_function(sliced_signals, **self.constants)
+        sliced_signals = local_signals[self.signal_indices]
+        return self.kernel_fn(sliced_signals, self.params)
 
 class ConstantNode(eqx.Module):
     """The simplest physics model: a trainable constant (or constants)."""
