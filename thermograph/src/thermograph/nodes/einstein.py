@@ -16,7 +16,7 @@ class GroundStateNode:
     Domain builder for the ground state energy E_0.
     """
     def __init__(self, E_0: float):
-        self.E_0 = float(E_0)
+        self.E_0 = E_0
         
     def compile_zgraph_engine(self) -> TemplateNode:
         return TemplateNode(
@@ -49,7 +49,7 @@ class EinsteinNode:
     Domain builder for a pure 1-DOF quantum harmonic oscillator.
     """
     def __init__(self, Theta_E: float, T_index: int = 0):
-        self.Theta_E = float(Theta_E)
+        self.Theta_E = Theta_E
         self.T_index = T_index
         
     def compile_zgraph_engine(self) -> TemplateNode:
