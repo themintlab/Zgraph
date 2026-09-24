@@ -19,4 +19,8 @@ def marginalize(energy_landscape: jax.Array, beta: Union[float, jax.Array] = 1.0
         jax.Array: The renormalized scalar Free Energy. Shape: () (Scalar)
     """
     # Calculate the partition function / free energy as a scalar.
-    return beta * logsumexp(energy_landscape / beta, axis=-1)
+    return jax.lax.cond(
+        energy_landscape.shape[-1] == 1,
+        lambda: jnp.squeeze(energy_landscape, axis=-1),
+        lambda: beta * logsumexp(energy_landscape / beta, axis=-1)
+    )
