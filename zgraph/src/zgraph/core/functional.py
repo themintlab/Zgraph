@@ -20,8 +20,6 @@ def marginalize(energy_landscape: jax.Array, beta: Union[float, jax.Array] = 1.0
     """
     # Calculate the partition function / free energy as a scalar.
     # TODO: Address numerical instability in 3rd-order JAX logsumexp gradients at T->0 (beta=1e-4) without relying on this explicit 1-state bypass.
-    return jax.lax.cond(
-        energy_landscape.shape[-1] == 1,
-        lambda: jnp.squeeze(energy_landscape, axis=-1),
-        lambda: beta * logsumexp(energy_landscape / beta, axis=-1)
-    )
+    if energy_landscape.shape[-1] == 1:
+        return jnp.squeeze(energy_landscape, axis=-1)
+    return beta * logsumexp(energy_landscape / beta, axis=-1)
