@@ -39,10 +39,9 @@ def find_crossover_indices(batched_logits: jax.Array, ranks: Tuple[int, int] = (
             - The actual state indices [2] of the states at the intersection.
     """
     k_needed = max(ranks) + 1
-    # largest=False means we want the lowest "costs" (energies/tolls/utilities)
-    # jax.lax.top_k returns the largest, so we negate batched_logits
-    top_values_neg, top_indices = jax.lax.top_k(-batched_logits, k_needed)
-    top_values = -top_values_neg
+    # batched_logits represent w (-Omega). Higher w = lower energy = more stable.
+    # jax.lax.top_k returns the largest values, which correctly correspond to the most stable states.
+    top_values, top_indices = jax.lax.top_k(batched_logits, k_needed)
     
     # The boundary occurs where the difference between the two specified ranks is 0
     delta_omega = top_values[..., ranks[0]] - top_values[..., ranks[1]]
