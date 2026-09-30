@@ -1,5 +1,7 @@
 import jax.numpy as jnp
-from zgraph.core import TemplateNode
+import equinox as eqx
+from zgraph.core.leaf_nodes import TemplateNode
+from zgraph.core.base import ZGraphNode, Ensemble
 from thermograph.core.constants import KB_R, SAFE_MIN_T
 
 def _ground_state_kernel(signals, params):
@@ -11,19 +13,21 @@ def _ground_state_kernel(signals, params):
     E_0 = params[0]
     return E_0
 
-class GroundStateNode:
+class GroundStateNode(ZGraphNode):
     """
-    Domain builder for the ground state energy E_0.
+    Domain model for the ground state energy E_0.
     """
-    def __init__(self, E_0: float):
-        self.E_0 = E_0
-        
-    def compile_zgraph_engine(self) -> TemplateNode:
-        return TemplateNode(
+    engine: TemplateNode
+    
+    def __init__(self, E_0):
+        self.engine = TemplateNode(
             kernel_fn=_ground_state_kernel,
-            params=(self.E_0,),
+            params=(E_0,),
             signal_indices=[]
         )
+        
+    def _evaluate(self, signals):
+        return self.engine(signals)
 
 def _einstein_kernel(signals, params):
     """
@@ -44,17 +48,18 @@ def _einstein_kernel(signals, params):
     
     return ZPE + G_thermal
 
-class EinsteinNode:
+class EinsteinNode(ZGraphNode):
     """
-    Domain builder for a pure 1-DOF quantum harmonic oscillator.
+    Domain model for a pure 1-DOF quantum harmonic oscillator.
     """
-    def __init__(self, Theta_E: float, T_index: int = 0):
-        self.Theta_E = Theta_E
-        self.T_index = T_index
-        
-    def compile_zgraph_engine(self) -> TemplateNode:
-        return TemplateNode(
+    engine: TemplateNode
+    
+    def __init__(self, Theta_E, T_index: int = 0):
+        self.engine = TemplateNode(
             kernel_fn=_einstein_kernel,
-            params=(self.Theta_E,),
-            signal_indices=[self.T_index]
+            params=(Theta_E,),
+            signal_indices=[T_index]
         )
+        
+    def _evaluate(self, signals):
+        return self.engine(signals)

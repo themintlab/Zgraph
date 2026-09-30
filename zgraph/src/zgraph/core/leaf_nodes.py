@@ -3,8 +3,9 @@ import jax.numpy as jnp
 import equinox as eqx
 from typing import Optional, Union, List, Callable, Dict, Any, Tuple
 from jax.tree_util import tree_map
+from .base import ZGraphNode, Ensemble
 
-class TemplateNode(eqx.Module):
+class TemplateNode(ZGraphNode):
     """
     A purely mathematical leaf node that executes a static JAX function over registered tensor parameters.
     Designed to serve as an anonymous block for domain-specific kernels without violating zgraph's pure-tensor constraints.
@@ -21,11 +22,12 @@ class TemplateNode(eqx.Module):
         indices = signal_indices if signal_indices is not None else []
         self.signal_indices = jnp.array(indices, dtype=jnp.int32)
 
-    def __call__(self, local_signals: jax.Array) -> jax.Array:
+    @ZGraphNode.auto_vectorize
+    def _evaluate(self, local_signals: jax.Array) -> jax.Array:
         sliced_signals = local_signals[self.signal_indices]
         return self.kernel_fn(sliced_signals, self.params)
 
-class ConstantNode(eqx.Module):
+class ConstantNode(ZGraphNode):
     """The simplest physics model: a trainable constant (or constants)."""
     value: jax.Array
 
@@ -35,10 +37,11 @@ class ConstantNode(eqx.Module):
         else:
             self.value = jnp.array(init_val, dtype=jnp.float32)
 
-    def __call__(self, signals: jax.Array) -> jax.Array:
+    @ZGraphNode.auto_vectorize
+    def _evaluate(self, signals: jax.Array) -> jax.Array:
         return self.value
     
-class SignalNode(eqx.Module):
+class SignalNode(ZGraphNode):
     """A node that extracts specific signal indices from the input."""
     signal_index: int = eqx.field(static=True)
 
@@ -49,7 +52,8 @@ class SignalNode(eqx.Module):
             raise TypeError("signal_index must be an integer. Use SignalNodes() for multiple nodes.")
         self.signal_index = signal_index
 
-    def __call__(self, local_signals: jax.Array) -> jax.Array:
+    @ZGraphNode.auto_vectorize
+    def _evaluate(self, local_signals: jax.Array) -> jax.Array:
         return local_signals[self.signal_index]
 
 def SignalNodes(*indices: Any) -> Any:
