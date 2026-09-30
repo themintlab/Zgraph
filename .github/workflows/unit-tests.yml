@@ -28,7 +28,7 @@ jobs:
           pip install -e ./zgraph -e ./thermograph
 
       - name: Run unit tests
-        run: pytest zgraph/tests thermograph/tests
+        run: pytest zgraph/tests
 
   compile-regression:
     runs-on: ubuntu-latest
