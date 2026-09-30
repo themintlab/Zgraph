@@ -1,36 +1,33 @@
+import jax
 import jax.numpy as jnp
-from zgraph.core.leaf_nodes import TemplateNode
+import equinox as eqx
+from zgraph.core.operation_nodes import PiecewiseNode
 from zgraph.core.base import ZGraphNode, Ensemble
 from typing import List, Tuple
 
-def _piecewise_sgte_kernel(signals, params):
+class SGTESingleNode(ZGraphNode):
     """
-    Pure JAX mathematical kernel for a piecewise SGTE polynomial equation.
-    Signals: [T]
-    Params: (bounds, coeffs_matrix)
-        bounds: Array of shape (N-1,) containing transition temperatures.
-        coeffs_matrix: Array of shape (N, 8) containing coefficients for each range.
+    Evaluates a single SGTE polynomial equation for a specific temperature range.
     Computes: G = a + bT + cT*ln(T) + dT^2 + eT^-1 + fT^3 + iT^7 + jT^-9
     """
-    T = signals[0]
-    bounds, coeffs_matrix = params
-    
-    # Efficiently find the index of the temperature range without branching
-    idx = jnp.searchsorted(bounds, T, side='right')
-    
-    # Extract the 8 coefficients for the active range using dynamic slicing
-    a, b, c, d, e, f, i, j = coeffs_matrix[idx]
-    
-    # We pad the polynomial up to 8 parameters to support standard Unary50 elements like Cu
-    # Prevent log(T) and T^-n from returning nan/inf at absolute zero.
-    T_safe = jnp.maximum(T, 1e-10)
-    return a + b*T + c*T_safe*jnp.log(T_safe) + d*T**2 + e*T_safe**-1 + f*T**3 + i*T**7 + j*T_safe**-9
+    coeffs: jax.Array
+    T_index: int = eqx.field(static=True)
+
+    def __init__(self, coeffs: jax.Array, T_index: int = 0):
+        self.coeffs = jnp.array(coeffs, dtype=jnp.float32)
+        self.T_index = T_index
+
+    def evaluate(self, signals):
+        T = signals[self.T_index]
+        a, b, c, d, e, f, i, j = self.coeffs
+        T_safe = jnp.maximum(T, 1e-10)
+        return a + b*T + c*T_safe*jnp.log(T_safe) + d*T**2 + e*T_safe**-1 + f*T**3 + i*T**7 + j*T_safe**-9
 
 class SGTENode(ZGraphNode):
     """
     Domain-specific model for the SGTE piecewise polynomial thermodynamic equation.
     """
-    engine: TemplateNode
+    engine: PiecewiseNode
     
     def __init__(self, piecewise_data: List[Tuple[float, List[float]]], T_index: int = 0):
         """
@@ -41,25 +38,23 @@ class SGTENode(ZGraphNode):
             T_index: The index of Temperature in the signals array.
         """
         bounds = []
-        coeffs = []
+        subgraphs = []
         
         for i, (t_max, coeffs_arr) in enumerate(piecewise_data):
             if len(coeffs_arr) != 8:
                 raise ValueError(f"SGTE kernel requires exactly 8 coefficients. Got {len(coeffs_arr)}.")
-            coeffs.append(coeffs_arr)
+                
+            coeffs = jnp.array(coeffs_arr, dtype=jnp.float32)
+            subgraphs.append(SGTESingleNode(coeffs=coeffs, T_index=T_index))
+            
             # The last T_max isn't a transition bound, it's just the end of the domain
             if i < len(piecewise_data) - 1:
                 bounds.append(t_max)
                 
-        bounds_arr = jnp.array(bounds, dtype=jnp.float32)
-        coeffs_matrix = jnp.array(coeffs, dtype=jnp.float32)
-        
-        params = (bounds_arr, coeffs_matrix)
-        
-        self.engine = TemplateNode(
-            kernel_fn=_piecewise_sgte_kernel,
-            params=params,
-            signal_indices=[T_index]
+        self.engine = PiecewiseNode(
+            bounds=bounds,
+            subgraph_list=subgraphs,
+            signal_index=T_index
         )
 
     def evaluate(self, signals):

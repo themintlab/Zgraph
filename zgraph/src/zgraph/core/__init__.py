@@ -1,10 +1,10 @@
-from .operation_nodes import FactorNode, ProductNode
-from .leaf_nodes import TemplateNode, ConstantNode, SignalNode, SignalNodes
+from .operation_nodes import FactorNode, ProductNode, PiecewiseNode
+from .leaf_nodes import ConstantNode, SignalNode, SignalNodes
 
 __all__ = [
     "FactorNode",
     "ProductNode",
-    "TemplateNode",
+    "PiecewiseNode",
     "ConstantNode",
     "SignalNode",
     "SignalNodes",

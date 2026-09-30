@@ -5,26 +5,6 @@ from typing import Optional, Union, List, Callable, Dict, Any, Tuple
 from jax.tree_util import tree_map
 from .base import ZGraphNode, Ensemble
 
-class TemplateNode(ZGraphNode):
-    """
-    A purely mathematical leaf node that executes a static JAX function over registered tensor parameters.
-    Designed to serve as an anonymous block for domain-specific kernels without violating zgraph's pure-tensor constraints.
-    """
-    params: Any
-    kernel_fn: Callable = eqx.field(static=True)
-    signal_indices: jax.Array
-
-    def __init__(self, kernel_fn: Callable, params: Any, signal_indices: Optional[List[int]] = None):
-        if isinstance(params, dict):
-            raise TypeError("Dictionaries are forbidden in zgraph equinox modules. Pass arrays or tuples instead.")
-        self.kernel_fn = kernel_fn
-        self.params = params
-        indices = signal_indices if signal_indices is not None else []
-        self.signal_indices = jnp.array(indices, dtype=jnp.int32)
-
-    def evaluate(self, local_signals: jax.Array) -> jax.Array:
-        sliced_signals = local_signals[self.signal_indices]
-        return self.kernel_fn(sliced_signals, self.params)
 
 class ConstantNode(ZGraphNode):
     """The simplest physics model: a trainable constant (or constants)."""
