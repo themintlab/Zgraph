@@ -13,7 +13,7 @@ To ensure speed and portability across platforms and hardware architectures, all
 The `zgraph` codebase is strictly divided into three distinct categories based on their mathematical role:
 
 1. **`core/` (The PGM Forward Pass)**
-   Contains the structural math primitives (`FactorNode`, `ProductNode`, `marginalize`). These define the topology of the graphical model. They execute the __call__() pass to compute either the collapsed macroscopic state (the partition function via `.__call__()`) or the latent microscopic distribution (the logits via `.logits()`).
+   Contains the structural math primitives (`FactorNode`, `ProductNode`, `marginalize`). These define the topology of the graphical model. They execute the `evaluate()` pass to compute either the collapsed macroscopic state (the partition function via `evaluate()` (wrapped by `__call__()`)) or the latent microscopic distribution (the logits via `.logits()`).
 
 2. **`transforms/` (Graph-to-Graph Operators)**
    Contains functional operators (like `legendre_transform`) that reshape the topology or coordinates. A transform takes a graph (`eqx.Module`) and returns a *new* graph. They do not find solutions; they alter the geometry of the problem analytically.
@@ -28,7 +28,7 @@ The `zgraph` codebase is strictly divided into three distinct categories based o
 To prevent breaking JAX/Equinox native `vmap` and `jax.jit` compatibility, all contributors must strictly adhere to the following rules:
 
 1. **Pure Math, No Python Objects:**
-   **No standard Python objects (strings, lists of strings, dictionaries) or Python control flow (`if` statements based on string matching) may exist inside `zgraph` `eqx.Module` classes or their `__call__()` passes.**
+   **No standard Python objects (strings, lists of strings, dictionaries) or Python control flow (`if` statements based on string matching) may exist inside `zgraph` `eqx.Module` classes or their `evaluate()` passes.**
    - *Reason:* `jax.jit` requires strict static typing. Dictionaries or string parsing cause graph breaks and kernel compilation failures. All domain knowledge (names, metadata) must remain in the application layer.
 
 2. **Structural Immutability:**
@@ -38,15 +38,15 @@ To prevent breaking JAX/Equinox native `vmap` and `jax.jit` compatibility, all c
 3. **GPU & Device Management (The Buffer Rule):**
    - **Static indices and constant tensors** (e.g., `signal_indices`, gauge target values) MUST be registered as integer/float tensor buffers using `eqx.field(static=True) for non-arrays or just assign as standard JAX array`.
    - **Learnable constants** must use `standard JAX arrays (Equinox treats all arrays as parameters unless marked static)`.
-   - **Never** store lists of integers or floats as raw attributes (e.g., `self.indices = [0, 1]`) if they are used in the __call__() pass. 
+   - **Never** store lists of integers or floats as raw attributes (e.g., `self.indices = [0, 1]`) if they are used in the `evaluate()` pass. 
    - *Reason:* Doing so ensures that when a user calls `jax.device_put(model)`, all buffers and parameters seamlessly migrate to the GPU. Python lists are ignored by JAX device transfer and will trigger a device mismatch crash.
 
 4. **Tensor-Only Communication:**
-   All inputs and outputs between `zgraph` modules must be `jax.Array` types. No custom classes, tuples of mixed types, or optional arguments are permitted in the `__call__` signature.
+   All inputs and outputs between `zgraph` modules must be `jax.Array` types. No custom classes, tuples of mixed types, or optional arguments are permitted in the `evaluate` signature.
    - *Reason:* `jax.jit` traces continuous streams of tensor operations. Non-tensor objects force a return to the Python interpreter (a "graph break"), destroying performance.
 
 5. **Computational Efficiency (No Python Loops):**
-   **Never** use Python `for` or `while` loops over spatial dimensions, batches, or microstates inside a `__call__()` pass. All operations must be vectorized using native JAX tensor operations, broadcasting, or `vmap`.
+   **Never** use Python `for` or `while` loops over spatial dimensions, batches, or microstates inside an `evaluate()` pass. All operations must be vectorized using native JAX tensor operations, broadcasting, or `vmap`.
    - *Reason:* Python loops are extremely slow and defeat the purpose of using JAX. ZGraph is designed for high-throughput batch evaluations; loops cause a massive bottleneck.
 
 6. **Clean Code & Strict Typing:**
@@ -59,3 +59,28 @@ To prevent breaking JAX/Equinox native `vmap` and `jax.jit` compatibility, all c
 All leaf node engines dynamically register trainable parameters to ensure ZGraph can optimize arbitrary equations without needing to hardcode specific variable shapes into the engine block.
 
 *(May be subject to change as application layer matures)*
+
+
+## 4. The Functor Pattern (`ZGraphNode`)
+
+
+To maximize both code readability and hardware performance, `zgraph` implements a strict Template Method design pattern via the `ZGraphNode` base class.
+
+*   **Pristine Subclasses:** Subclasses (e.g., `FactorNode`, `ProductNode`, `EinsteinNode`) must NEVER implement `__call__`. Instead, they implement their pure, unvectorized scalar mathematical logic inside `evaluate(self, signals)`.
+*   **The Interceptor:** The `ZGraphNode` base class takes absolute ownership of `__call__`. When a user evaluates `system(signals)`, the base class automatically intercepts the execution, detects batch dimensions or uncertainty parameters, constructs the necessary JAX masks, wraps `evaluate` in `jax.vmap` and `eqx.filter_vmap`, and executes the hardware-optimized kernel.
+
+## 5. Universal Uncertainty Quantification (UQ)
+
+ZGraph treats epistemic uncertainty (parameter distributions) and aleatoric uncertainty (thermal fluctuations) entirely differently:
+*   **Aleatoric:** Handled natively inside the core scalar logic via exact `logsumexp` partition function integrals.
+*   **Epistemic:** Executed externally via highly optimized Monte Carlo ensembles (parallel universes) mapped over the graph via JAX.
+
+### The `Ensemble` PyTree Wrapper
+To protect physical vector constants (like mixture weights) from being accidentally mapped, uncertainty parameters MUST be wrapped in the `Ensemble(eqx.Module)` wrapper when injected into the tree at compile time. 
+*   **Example:** `node = GroundStateNode(E0=Ensemble(E0_samples))`
+*   The `__call__` interceptor recursively scans the PyTree for `Ensemble` objects. It dynamically unwraps them before passing the raw arrays into the pure `evaluate` method.
+
+### The `.ensemble` BatchProxy
+For future-proofing secondary domain methods (e.g., an X-ray spectrum node that computes `phonon_broadening(E)` alongside its primary `evaluate`), the base class provides a magical `BatchProxy` via the `.ensemble` property.
+*   **Purpose:** To effortlessly map secondary physics methods over the uncertainty distributions without forcing developers to manually reconstruct the massive PyTree `in_axes` masks.
+*   **Usage:** `system.ensemble.phonon_broadening(signals)`
