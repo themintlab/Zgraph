@@ -60,7 +60,6 @@ class FactorNode(ZGraphNode):
             
         self.subgraphs = list(subgraph_list)
 
-    @ZGraphNode.auto_vectorize
     def logits(self, signals: jax.Array) -> jax.Array:
         """
         The Logits / Uncollapsed Energy Vector.
@@ -70,7 +69,6 @@ class FactorNode(ZGraphNode):
         w = jnp.stack([subgraph(signals) for subgraph in self.subgraphs], axis=-1)
         return jnp.matmul(self.M, w)
     
-    @ZGraphNode.auto_vectorize
     def probabilities(self, signals: jax.Array) -> jax.Array:
         """
         The Local Marginal Probabilities (SoftMin weights).
@@ -82,8 +80,7 @@ class FactorNode(ZGraphNode):
         # Softmax applies the exact exponential weighting used in the partition function
         return jax.nn.softmax(energy_landscape / beta_val, axis=-1)
 
-    @ZGraphNode.auto_vectorize
-    def _evaluate(self, local_signals: jax.Array) -> jax.Array:
+    def evaluate(self, local_signals: jax.Array) -> jax.Array:
         """
         The Strict Axiom: The Partition Function Collapse.
         Returns Rank 0 Tensor (Scalar).
@@ -105,7 +102,6 @@ class ProductNode(ZGraphNode):
                 raise TypeError("Each entry in subgraph_list must be an eqx.Module.")
         self.subgraphs = list(subgraph_list)
 
-    @ZGraphNode.auto_vectorize
-    def _evaluate(self, local_signals: jax.Array) -> jax.Array:
+    def evaluate(self, local_signals: jax.Array) -> jax.Array:
         values = jnp.stack([subgraph(local_signals) for subgraph in self.subgraphs], axis=0)
         return jnp.prod(values, axis=0)

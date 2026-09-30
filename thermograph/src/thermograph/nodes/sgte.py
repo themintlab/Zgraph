@@ -62,5 +62,5 @@ class SGTENode(ZGraphNode):
             signal_indices=[T_index]
         )
 
-    def _evaluate(self, signals):
+    def evaluate(self, signals):
         return self.engine(signals)

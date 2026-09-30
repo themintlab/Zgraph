@@ -26,7 +26,7 @@ class GroundStateNode(ZGraphNode):
             signal_indices=[]
         )
         
-    def _evaluate(self, signals):
+    def evaluate(self, signals):
         return self.engine(signals)
 
 def _einstein_kernel(signals, params):
@@ -61,5 +61,5 @@ class EinsteinNode(ZGraphNode):
             signal_indices=[T_index]
         )
         
-    def _evaluate(self, signals):
+    def evaluate(self, signals):
         return self.engine(signals)

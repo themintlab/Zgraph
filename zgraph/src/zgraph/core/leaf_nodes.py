@@ -22,8 +22,7 @@ class TemplateNode(ZGraphNode):
         indices = signal_indices if signal_indices is not None else []
         self.signal_indices = jnp.array(indices, dtype=jnp.int32)
 
-    @ZGraphNode.auto_vectorize
-    def _evaluate(self, local_signals: jax.Array) -> jax.Array:
+    def evaluate(self, local_signals: jax.Array) -> jax.Array:
         sliced_signals = local_signals[self.signal_indices]
         return self.kernel_fn(sliced_signals, self.params)
 
@@ -37,8 +36,7 @@ class ConstantNode(ZGraphNode):
         else:
             self.value = jnp.array(init_val, dtype=jnp.float32)
 
-    @ZGraphNode.auto_vectorize
-    def _evaluate(self, signals: jax.Array) -> jax.Array:
+    def evaluate(self, signals: jax.Array) -> jax.Array:
         return self.value
     
 class SignalNode(ZGraphNode):
@@ -52,8 +50,7 @@ class SignalNode(ZGraphNode):
             raise TypeError("signal_index must be an integer. Use SignalNodes() for multiple nodes.")
         self.signal_index = signal_index
 
-    @ZGraphNode.auto_vectorize
-    def _evaluate(self, local_signals: jax.Array) -> jax.Array:
+    def evaluate(self, local_signals: jax.Array) -> jax.Array:
         return local_signals[self.signal_index]
 
 def SignalNodes(*indices: Any) -> Any:

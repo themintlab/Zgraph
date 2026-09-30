@@ -19,7 +19,9 @@ class PhaseBoundaryPredictor(ZGraphNode):
     def __init__(self, system_node: FactorNode):
         self.system = system_node
 
-    @ZGraphNode.auto_vectorize(signal_ndim=2)
+    def __call__(self, sweep_signals, mu_index=1):
+        return self._execute_vectorized("predict_compositions", sweep_signals, signal_ndim=2, mu_index=mu_index)
+        
     def predict_compositions(self, sweep_signals: jax.Array, mu_index: int = 1) -> jax.Array:
         """
         Extracts tie-lines by finding crossovers in the uncollapsed logits and 
