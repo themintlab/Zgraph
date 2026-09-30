@@ -16,7 +16,3 @@ def load_zgraph(node_blueprint: eqx.Module, path: str):
         path: Path to a checkpoint created by ``save_zgraph``.
     """
     return eqx.tree_deserialise_leaves(path, node_blueprint)
-
-# Backward-compatibility aliases
-save_znet = save_zgraph
-load_znet = load_zgraph

@@ -1,8 +1,6 @@
-from .serialize import save_zgraph, load_zgraph, save_znet, load_znet
+from .serialize import save_zgraph, load_zgraph
 
 __all__ = [
     "save_zgraph",
     "load_zgraph",
-    "save_znet",
-    "load_znet",
 ]
