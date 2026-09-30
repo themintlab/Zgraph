@@ -3,21 +3,23 @@ import re
 import sympy
 from sympy.parsing.sympy_parser import parse_expr
 from zgraph import save
-from thermograph.nodes.sgte import SGTENode
+from zgraph.core.operation_nodes import AdditionNode, PiecewiseNode
+from thermograph.nodes.sgte import SGTESingleNode
 
 class TDBParser:
     """
-    A minimal CALPHAD TDB parser that extracts FUNCTION definitions and statically 
-    evaluates nested dependencies into pure polynomial piecewise limits for ZGraph.
+    A minimal CALPHAD TDB parser that extracts FUNCTION definitions and 
+    builds hierarchical ZGraph nodes, preserving all physical dependencies 
+    (like GHSERSI) as exact subgraphs for perfect gradient flow.
     """
     def __init__(self, tdb_text):
         self.functions = self._parse_functions(tdb_text)
         self.T = sympy.Symbol('T')
         self.terms = [1, self.T, self.T * sympy.log(self.T), self.T**2, self.T**-1, self.T**3, self.T**7, self.T**-9]
+        self.node_registry = {}
 
     def _parse_functions(self, tdb_text):
         functions = {}
-        # Simple extraction of FUNCTION blocks (assuming they don't contain 'FUNCTION' internally)
         blocks = re.split(r'\bFUNCTION\b', tdb_text, flags=re.IGNORECASE)[1:]
         
         for block in blocks:
@@ -73,66 +75,51 @@ class TDBParser:
                 deps[str(term).upper()] = float(c)
         return coeffs, deps
 
-    def _get_piece(self, name, T_val):
-        func = self.functions[name]
-        for piece in func['pieces']:
-            if T_val <= piece['t_max']:
-                return piece
-        return func['pieces'][-1]
-
-    def build_phase(self, name):
+    def get_node(self, name):
         name = name.upper()
+        if name in self.node_registry:
+            return self.node_registry[name]
+            
         if name not in self.functions:
             raise KeyError(f"Phase/Function '{name}' not found in TDB.")
             
-        breakpoints = set()
+        func = self.functions[name]
         
-        def collect_breakpoints(n):
-            func = self.functions[n]
-            breakpoints.add(func['low_T'])
-            for piece in func['pieces']:
-                breakpoints.add(piece['t_max'])
-                coeffs, deps = self._extract_coeffs(piece['expr'])
-                for dep in deps:
-                    collect_breakpoints(dep)
-        
-        collect_breakpoints(name)
-        breakpoints = sorted(list(breakpoints))
-        
-        compiled_pieces = []
-        for i in range(len(breakpoints)-1):
-            t_min = breakpoints[i]
-            t_max = breakpoints[i+1]
-            t_mid = (t_min + t_max) / 2.0
+        subgraphs = []
+        bounds = []
+        for piece in func['pieces']:
+            coeffs, deps = self._extract_coeffs(piece['expr'])
+            base = SGTESingleNode(coeffs, T_index=0)
             
-            def resolve_coeffs(n, t):
-                piece = self._get_piece(n, t)
-                base_coeffs, deps = self._extract_coeffs(piece['expr'])
-                
-                final_coeffs = list(base_coeffs)
+            if not deps:
+                sub = base
+            else:
+                subs = [base]
+                weights = [1.0]
                 for dep_name, mult in deps.items():
-                    dep_coeffs = resolve_coeffs(dep_name, t)
-                    for j in range(8):
-                        final_coeffs[j] += mult * dep_coeffs[j]
-                return final_coeffs
+                    subs.append(self.get_node(dep_name))
+                    weights.append(mult)
+                sub = AdditionNode(subs, weights)
                 
-            c = resolve_coeffs(name, t_mid)
-            compiled_pieces.append((t_max, c))
+            subgraphs.append(sub)
+            bounds.append(piece['t_max'])
             
-        return compiled_pieces
+        bounds = bounds[:-1] # PiecewiseNode takes N-1 bounds
+        
+        if len(bounds) == 0:
+            node = subgraphs[0]
+        else:
+            node = PiecewiseNode(bounds, subgraphs, signal_index=0)
+            
+        self.node_registry[name] = node
+        return node
 
 
 def extract_sgte_library(tdb_path: str, output_dir: str, phases: list = None):
     """
-    Reads a CALPHAD .tdb file, recursively resolves functional dependencies into 
-    flat SGTE polynomials, constructs ZGraph SGTENodes, and serializes them to 
-    the target output library directory.
-
-    Args:
-        tdb_path: Path to the .tdb file.
-        output_dir: Path to the library folder to save .zg archives.
-        phases: List of specific FUNCTION names to extract (e.g. ['GHSERSI', 'GLIQSI']). 
-                If None, extracts ALL available functions.
+    Reads a CALPHAD .tdb file, parses functional dependencies as exact ZGraph
+    hierarchical subgraphs (AdditionNode, PiecewiseNode), and serializes them 
+    to the target output library directory.
     """
     with open(tdb_path, 'r') as f:
         text = f.read()
@@ -147,8 +134,7 @@ def extract_sgte_library(tdb_path: str, output_dir: str, phases: list = None):
     extracted = []
     for phase_name in phases:
         try:
-            poly_data = parser.build_phase(phase_name)
-            node = SGTENode(poly_data, T_index=0)
+            node = parser.get_node(phase_name)
             
             filepath = os.path.join(output_dir, f"{phase_name}.zg")
             save(node, filepath)
@@ -158,3 +144,4 @@ def extract_sgte_library(tdb_path: str, output_dir: str, phases: list = None):
             
     print(f"Successfully serialized {len(extracted)} SGTE nodes to {output_dir}")
     return extracted
+

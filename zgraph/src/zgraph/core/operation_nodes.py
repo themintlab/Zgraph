@@ -107,6 +107,31 @@ class ProductNode(ZGraphNode):
         return jnp.prod(values, axis=0)
 
 
+class AdditionNode(ZGraphNode):
+    """Computes a weighted sum of subgraphs: sum(w_i * subgraph_i(signals))."""
+    weights: jax.Array
+    subgraphs: List[eqx.Module]
+    
+    def __init__(self, subgraph_list: List[eqx.Module], weights: Optional[Union[jax.Array, List[float]]] = None):
+        if len(subgraph_list) == 0:
+            raise ValueError("subgraph_list must contain at least one subgraph.")
+        for subgraph in subgraph_list:
+            if not isinstance(subgraph, eqx.Module):
+                raise TypeError("Each entry in subgraph_list must be an eqx.Module.")
+        self.subgraphs = list(subgraph_list)
+        if weights is None:
+            self.weights = jnp.ones(len(subgraph_list), dtype=jnp.float32)
+        else:
+            weights_arr = jnp.array(weights, dtype=jnp.float32)
+            if weights_arr.shape != (len(subgraph_list),):
+                raise ValueError("weights must be a 1D array matching the number of subgraphs.")
+            self.weights = weights_arr
+
+    def evaluate(self, local_signals: jax.Array) -> jax.Array:
+        values = jnp.stack([subgraph(local_signals) for subgraph in self.subgraphs], axis=0)
+        return jnp.tensordot(self.weights, values, axes=1)
+
+
 class PiecewiseNode(ZGraphNode):
     """Evaluates a single subgraph based on a signal's value and a set of transition bounds."""
     bounds: jax.Array
