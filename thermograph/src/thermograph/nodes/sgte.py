@@ -1,5 +1,6 @@
 import jax.numpy as jnp
 from zgraph.core.leaf_nodes import TemplateNode
+from zgraph.core.base import ZGraphNode, Ensemble
 from typing import List, Tuple
 
 def _piecewise_sgte_kernel(signals, params):
@@ -25,11 +26,12 @@ def _piecewise_sgte_kernel(signals, params):
     T_safe = jnp.maximum(T, 1e-10)
     return a + b*T + c*T_safe*jnp.log(T_safe) + d*T**2 + e*T_safe**-1 + f*T**3 + i*T**7 + j*T_safe**-9
 
-class SGTENode:
+class SGTENode(ZGraphNode):
     """
-    Domain-specific builder for the SGTE piecewise polynomial thermodynamic model.
-    Compiles into a pure zgraph execution node.
+    Domain-specific model for the SGTE piecewise polynomial thermodynamic equation.
     """
+    engine: TemplateNode
+    
     def __init__(self, piecewise_data: List[Tuple[float, List[float]]], T_index: int = 0):
         """
         Args:
@@ -38,32 +40,27 @@ class SGTENode:
                 The last tuple should have T_max as jnp.inf or the highest valid temperature.
             T_index: The index of Temperature in the signals array.
         """
-        self.bounds = []
-        self.coeffs = []
+        bounds = []
+        coeffs = []
         
-        for i, (t_max, coeffs) in enumerate(piecewise_data):
-            if len(coeffs) != 8:
-                raise ValueError(f"SGTE kernel requires exactly 8 coefficients. Got {len(coeffs)}.")
-            self.coeffs.append(coeffs)
+        for i, (t_max, coeffs_arr) in enumerate(piecewise_data):
+            if len(coeffs_arr) != 8:
+                raise ValueError(f"SGTE kernel requires exactly 8 coefficients. Got {len(coeffs_arr)}.")
+            coeffs.append(coeffs_arr)
             # The last T_max isn't a transition bound, it's just the end of the domain
             if i < len(piecewise_data) - 1:
-                self.bounds.append(t_max)
+                bounds.append(t_max)
                 
-        self.T_index = T_index
-
-    def compile_zgraph_engine(self) -> TemplateNode:
-        """
-        Compiles the piecewise SGTE parameters into a purely numerical zgraph TemplateNode.
-        """
-        bounds_arr = jnp.array(self.bounds, dtype=jnp.float32)
-        coeffs_matrix = jnp.array(self.coeffs, dtype=jnp.float32)
+        bounds_arr = jnp.array(bounds, dtype=jnp.float32)
+        coeffs_matrix = jnp.array(coeffs, dtype=jnp.float32)
         
-        # params must be a tuple to satisfy zgraph's no-dictionary rule
         params = (bounds_arr, coeffs_matrix)
         
-        return TemplateNode(
+        self.engine = TemplateNode(
             kernel_fn=_piecewise_sgte_kernel,
             params=params,
-            signal_indices=[self.T_index]
+            signal_indices=[T_index]
         )
 
+    def evaluate(self, signals):
+        return self.engine(signals)

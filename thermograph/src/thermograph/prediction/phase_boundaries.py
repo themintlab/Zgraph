@@ -4,33 +4,36 @@ import equinox as eqx
 from jax import vmap, jacrev
 from zgraph.solvers import extract_decision_boundary
 from zgraph.core.operation_nodes import FactorNode
+from zgraph.core.base import ZGraphNode
 
-class PhaseBoundaryPredictor(eqx.Module):
+class PhaseBoundaryPredictor(ZGraphNode):
     """
     Predicts physical phase boundaries (compositions) by finding the thermodynamic 
     equilibrium manifold in the latent PGM distribution.
     
-    By inheriting from `eqx.Module`, this predictor is a pure JAX PyTree.
-    This allows it to be seamlessly vmapped over a posterior trace of parameters 
-    for Uncertainty Quantification (UQ).
+    By inheriting from `ZGraphNode`, this predictor can be seamlessly vmapped over a 
+    posterior trace of parameters for Uncertainty Quantification (UQ) via @auto_vectorize.
     """
     system: FactorNode
 
     def __init__(self, system_node: FactorNode):
         self.system = system_node
 
+    def __call__(self, sweep_signals, mu_index=1):
+        return self._execute_vectorized("predict_compositions", sweep_signals, signal_ndim=2, mu_index=mu_index)
+        
     def predict_compositions(self, sweep_signals: jax.Array, mu_index: int = 1) -> jax.Array:
         """
         Extracts tie-lines by finding crossovers in the uncollapsed logits and 
         applying the physical Legendre transform via the Jacobian.
         
         Args:
-            sweep_signals: A batched tensor of input signals [..., Sweep_Steps, N_Signals].
+            sweep_signals: A batched tensor of input signals [Sweep_Steps, N_Signals].
                            The decision boundary is searched along the Sweep_Steps dimension.
             mu_index: The index of the chemical potential in the signal tensor.
             
         Returns:
-            jax.Array: The tie-line compositions [..., 2] at equilibrium.
+            jax.Array: The tie-line compositions [2] at equilibrium.
         """
         orig_shape = sweep_signals.shape
         

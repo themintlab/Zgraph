@@ -3,9 +3,10 @@ import jax.numpy as jnp
 import equinox as eqx
 from typing import List, Union, Optional
 from . import functional as F
+from .base import ZGraphNode, Ensemble
 from .leaf_nodes import ConstantNode
 
-class FactorNode(eqx.Module):
+class FactorNode(ZGraphNode):
     # A minimum allowed beta to prevent division by zero in logsumexp
     _MIN_BETA: float = eqx.field(static=True, default=1e-4)
     
@@ -79,7 +80,7 @@ class FactorNode(eqx.Module):
         # Softmax applies the exact exponential weighting used in the partition function
         return jax.nn.softmax(energy_landscape / beta_val, axis=-1)
 
-    def __call__(self, local_signals: jax.Array) -> jax.Array:
+    def evaluate(self, local_signals: jax.Array) -> jax.Array:
         """
         The Strict Axiom: The Partition Function Collapse.
         Returns Rank 0 Tensor (Scalar).
@@ -89,7 +90,7 @@ class FactorNode(eqx.Module):
         return F.marginalize(energy_landscape, beta_val)
         
 
-class ProductNode(eqx.Module):
+class ProductNode(ZGraphNode):
     """Multiplies a list of subgraph outputs elementwise (tropical power)."""
     subgraphs: List[eqx.Module]
     
@@ -101,6 +102,6 @@ class ProductNode(eqx.Module):
                 raise TypeError("Each entry in subgraph_list must be an eqx.Module.")
         self.subgraphs = list(subgraph_list)
 
-    def __call__(self, local_signals: jax.Array) -> jax.Array:
+    def evaluate(self, local_signals: jax.Array) -> jax.Array:
         values = jnp.stack([subgraph(local_signals) for subgraph in self.subgraphs], axis=0)
         return jnp.prod(values, axis=0)
