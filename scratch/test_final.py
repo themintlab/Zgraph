@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as jnp
-from jax.scipy.special import logsumexp
 from typing import Tuple, Union
 
 def marginalize(energy_landscape: jax.Array, beta: Union[float, jax.Array] = 1.0) -> jax.Array:
@@ -12,7 +11,7 @@ def marginalize(energy_landscape: jax.Array, beta: Union[float, jax.Array] = 1.0
         energy_landscape (jax.Array): The dynamic Energy Vector across microstates.
                                          Shape: (..., Num_Microstates)
         beta (Union[float, jax.Array]): The thermodynamic smoothing parameter (-kT).
-                                           beta -> 0 triggers hardmax (T->0 limit).
+                                           beta -> 0 triggers hardmax (T->0).
                                            Shape: () (Scalar)
                                  
     Returns:
@@ -29,7 +28,7 @@ def marginalize(energy_landscape: jax.Array, beta: Union[float, jax.Array] = 1.0
     energy_max = jnp.max(energy_landscape, axis=-1, keepdims=True)
     
     # Safely handle beta=0 (hardmax limit) to prevent division by exactly zero.
-    # The formula naturally evaluates to exactly energy_max.
+    # The active branch naturally evaluates to exactly energy_max.
     safe_beta = jnp.where(beta == 0.0, 1e-10, beta)
     
     centered_energy = (energy_landscape - energy_max) / safe_beta
@@ -38,3 +37,12 @@ def marginalize(energy_landscape: jax.Array, beta: Union[float, jax.Array] = 1.0
     res = energy_max + beta * jnp.log(sum_exp)
     
     return jnp.squeeze(res, axis=-1)
+
+x_single = jnp.array([1.0])
+x_multi = jnp.array([1.0, 5.0, 2.0])
+
+# Just check it runs
+print(marginalize(x_single, 0.0))
+print(marginalize(x_multi, 0.0))
+print(marginalize(x_multi, 1e-4))
+print(marginalize(x_multi, 1.0))
