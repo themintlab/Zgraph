@@ -73,25 +73,6 @@ class TropicalPolynomialNode(ZGraphNode):
         return F.marginalize(energy_landscape, beta_val)
 
 
-class TropicalPowerNode(ZGraphNode):
-    """
-    Tropical Power / Standard Multiplication.
-    Multiplies a list of subgraph outputs elementwise. In energy space, scalar 
-    multiplication corresponds to exponentiating the underlying probability.
-    """
-    subgraphs: List[eqx.Module]
-    
-    def __init__(self, subgraph_list: List[eqx.Module]):
-        if len(subgraph_list) == 0:
-            raise ValueError("subgraph_list must contain at least one subgraph.")
-        for subgraph in subgraph_list:
-            if not isinstance(subgraph, eqx.Module):
-                raise TypeError("Each entry in subgraph_list must be an eqx.Module.")
-        self.subgraphs = list(subgraph_list)
-
-    def evaluate(self, local_signals: jax.Array) -> jax.Array:
-        values = jnp.stack([subgraph(local_signals) for subgraph in self.subgraphs], axis=0)
-        return jnp.prod(values, axis=0)
 
 
 

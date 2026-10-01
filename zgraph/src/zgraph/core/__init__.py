@@ -1,18 +1,17 @@
 from .tropical_nodes import (
     TropicalPolynomialNode, 
-    TropicalPowerNode,
     TropicalMatMulNode,
     TropicalZeroNode,
     TropicalIdentityNode
 )
-from .utility_nodes import PiecewiseNode
+from .utility_nodes import PiecewiseNode, StandardProductNode
 from .leaf_nodes import ConstantNode, SignalNode, SignalNodes
 
 import jax.numpy as jnp
 
 # Convenience Aliases for users wanting standard probability/math naming
 FactorNode = TropicalPolynomialNode
-ProductNode = TropicalPowerNode
+ProductNode = StandardProductNode
 MatMulNode = TropicalMatMulNode
 
 # Backwards compatibility wrappers
@@ -34,7 +33,7 @@ __all__ = [
     "DivisionNode",
     "MatMulNode",
     "TropicalPolynomialNode",
-    "TropicalPowerNode",
+    "StandardProductNode",
     "TropicalMatMulNode",
     "TropicalZeroNode",
     "TropicalIdentityNode",
