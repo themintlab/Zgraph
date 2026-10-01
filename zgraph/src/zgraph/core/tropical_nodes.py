@@ -118,28 +118,4 @@ class TropicalMatMulNode(ZGraphNode):
         beta_val = jnp.maximum(self.beta(local_signals), self._MIN_BETA)
         return F.marginalize(summed_k_last, beta_val)
 
-class TropicalZeroNode(ZGraphNode):
-    """
-    Tropical Zero Element (for ⊕).
-    Outputs a sufficiently high energy barrier (representing +inf).
-    Useful for dynamically masking out forbidden microstates, unreachable phases, 
-    or infinite potential walls without breaking the gradient graph.
-    """
-    barrier_value: jax.Array
-    
-    def __init__(self, barrier_value: Union[float, int, jax.Array] = 1e9):
-        if isinstance(barrier_value, jax.Array):
-            self.barrier_value = barrier_value.astype(jnp.float32)
-        else:
-            self.barrier_value = jnp.array(barrier_value, dtype=jnp.float32)
 
-    def evaluate(self, local_signals: jax.Array) -> jax.Array:
-        return self.barrier_value
-
-class TropicalIdentityNode(ZGraphNode):
-    """
-    Tropical Identity Element (for ⊗).
-    Outputs 0.0.
-    """
-    def evaluate(self, local_signals: jax.Array) -> jax.Array:
-        return jnp.array(0.0, dtype=jnp.float32)

@@ -1,8 +1,6 @@
 from .tropical_nodes import (
     TropicalPolynomialNode, 
-    TropicalMatMulNode,
-    TropicalZeroNode,
-    TropicalIdentityNode
+    TropicalMatMulNode
 )
 from .utility_nodes import PiecewiseNode, StandardProductNode
 from .leaf_nodes import ConstantNode, SignalNode, SignalNodes
@@ -25,6 +23,14 @@ def AdditionNode(subgraph_list, weights=None):
 
 def DivisionNode(numerator, denominator):
     return TropicalPolynomialNode(M_matrix=jnp.array([[1.0, -1.0]], dtype=jnp.float32), subgraph_list=[numerator, denominator])
+
+def TropicalZeroNode(barrier_value=1e9):
+    """Tropical Zero Element (for ⊕). Represented as a sufficiently high constant barrier."""
+    return ConstantNode(barrier_value)
+
+def TropicalIdentityNode():
+    """Tropical Identity Element (for ⊗). Represented as constant 0.0."""
+    return ConstantNode(0.0)
 
 __all__ = [
     "FactorNode",
