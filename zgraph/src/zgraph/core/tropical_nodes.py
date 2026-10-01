@@ -12,7 +12,7 @@ class TropicalPolynomialNode(ZGraphNode):
     Computes a full tropical polynomial by performing a dense linear transformation
     (Tropical Products) followed by a logsumexp collapse (Tropical Addition).
     """
-    _MIN_BETA: float = eqx.field(static=True, default=1e-4)
+    _MIN_BETA: float = eqx.field(static=True, default=DEFAULT_MATMUL_MIN_BETA)
     
     M: jax.Array
     beta: eqx.Module
