@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-from zgraph.core.operation_nodes import PiecewiseNode
+from zgraph.core import PiecewiseNode
 from zgraph.core.base import ZGraphNode, Ensemble
 from typing import List, Tuple
 

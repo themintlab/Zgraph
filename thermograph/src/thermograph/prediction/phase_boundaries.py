@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import equinox as eqx
 from jax import vmap, jacrev
 from zgraph.solvers import extract_decision_boundary
-from zgraph.core.operation_nodes import FactorNode
+from zgraph.core import FactorNode
 from zgraph.core.base import ZGraphNode
 
 class PhaseBoundaryPredictor(ZGraphNode):

@@ -3,11 +3,16 @@ import jax.numpy as jnp
 import equinox as eqx
 from typing import List, Union, Optional
 from . import functional as F
-from .base import ZGraphNode, Ensemble
+from .base import ZGraphNode
 from .leaf_nodes import ConstantNode
 
 class FactorNode(ZGraphNode):
-    # A minimum allowed beta to prevent division by zero in logsumexp
+    """
+    Tropical Addition (⊕).
+    Computes the logsumexp (soft-max/min) over parallel microstates to collapse them
+    into a partition function. In the tropical semiring over energy space, this 
+    is the addition operation.
+    """
     _MIN_BETA: float = eqx.field(static=True, default=1e-4)
     
     M: jax.Array
@@ -18,17 +23,6 @@ class FactorNode(ZGraphNode):
                  M_matrix: Union[jax.Array, List[List[float]]], 
                  subgraph_list: List[eqx.Module], 
                  beta: Optional[Union[eqx.Module, float, int, jax.Array]] = None):
-        """
-        Args:
-            M_matrix (Union[jax.Array, List[List[float]]]): 2D matrix of shape (num_microstates, num_clusters).
-            subgraph_list (list[eqx.Module]): A list of subgraph modules. The order
-                of modules in this list MUST match the order of the cluster
-                columns in the M_matrix.
-            beta (Optional[Union[eqx.Module, float, int, jax.Array]]): A module that extracts or provides the 
-                rationality/temperature parameter (e.g. SignalNode or ConstantNode).
-                Defaults to ConstantNode(1.0).
-        """
-
         if isinstance(M_matrix, list):
             M_matrix_tensor = jnp.array(M_matrix, dtype=jnp.float32)
         else:
@@ -61,54 +55,27 @@ class FactorNode(ZGraphNode):
         self.subgraphs = list(subgraph_list)
 
     def logits(self, signals: jax.Array) -> jax.Array:
-        """
-        The Logits / Uncollapsed Energy Vector.
-        Evaluates the subgraphs to build the cluster inputs (w), and maps them to microstates via M.
-        Returns a vector of size (num_microstates).
-        """
         w = jnp.stack([subgraph(signals) for subgraph in self.subgraphs], axis=-1)
         return jnp.matmul(self.M, w)
     
     def probabilities(self, signals: jax.Array) -> jax.Array:
-        """
-        The Local Marginal Probabilities (SoftMin weights).
-        Returns a normalized vector of size (num_microstates) representing the probability/weight of each state.
-        """
         energy_landscape = self.logits(signals)
         beta_val = jnp.maximum(self.beta(signals), self._MIN_BETA)
-        
-        # Softmax applies the exact exponential weighting used in the partition function
         return jax.nn.softmax(energy_landscape / beta_val, axis=-1)
 
     def evaluate(self, local_signals: jax.Array) -> jax.Array:
-        """
-        The Strict Axiom: The Partition Function Collapse.
-        Returns Rank 0 Tensor (Scalar).
-        """
         energy_landscape = self.logits(local_signals)
         beta_val = jnp.maximum(self.beta(local_signals), self._MIN_BETA)
         return F.marginalize(energy_landscape, beta_val)
         
 
-class ProductNode(ZGraphNode):
-    """Multiplies a list of subgraph outputs elementwise (tropical power)."""
-    subgraphs: List[eqx.Module]
-    
-    def __init__(self, subgraph_list: List[eqx.Module]):
-        if len(subgraph_list) == 0:
-            raise ValueError("subgraph_list must contain at least one subgraph.")
-        for subgraph in subgraph_list:
-            if not isinstance(subgraph, eqx.Module):
-                raise TypeError("Each entry in subgraph_list must be an eqx.Module.")
-        self.subgraphs = list(subgraph_list)
-
-    def evaluate(self, local_signals: jax.Array) -> jax.Array:
-        values = jnp.stack([subgraph(local_signals) for subgraph in self.subgraphs], axis=0)
-        return jnp.prod(values, axis=0)
-
-
 class AdditionNode(ZGraphNode):
-    """Computes a weighted sum of subgraphs: sum(w_i * subgraph_i(signals))."""
+    """
+    Tropical Product (⊗).
+    Computes a weighted sum of independent subgraphs: sum(w_i * subgraph_i(signals)).
+    In energy space, adding energy terms is equivalent to multiplying their underlying 
+    probabilities, making this the tropical product operation.
+    """
     weights: jax.Array
     subgraphs: List[eqx.Module]
     
@@ -132,28 +99,22 @@ class AdditionNode(ZGraphNode):
         return jnp.tensordot(self.weights, values, axes=1)
 
 
-class PiecewiseNode(ZGraphNode):
-    """Evaluates a single subgraph based on a signal's value and a set of transition bounds."""
-    bounds: jax.Array
+class ProductNode(ZGraphNode):
+    """
+    Tropical Power.
+    Multiplies a list of subgraph outputs elementwise. In energy space, scalar 
+    multiplication corresponds to exponentiating the underlying probability.
+    """
     subgraphs: List[eqx.Module]
-    signal_index: int = eqx.field(static=True)
     
-    def __init__(self, bounds: Union[jax.Array, List[float]], subgraph_list: List[eqx.Module], signal_index: int = 0):
-        bounds_arr = jnp.array(bounds, dtype=jnp.float32)
-        if bounds_arr.ndim != 1:
-            raise ValueError("bounds must be a 1D array of transition values.")
-        if len(subgraph_list) != len(bounds_arr) + 1:
-            raise ValueError("Number of subgraphs must be exactly one more than the number of bounds.")
+    def __init__(self, subgraph_list: List[eqx.Module]):
+        if len(subgraph_list) == 0:
+            raise ValueError("subgraph_list must contain at least one subgraph.")
         for subgraph in subgraph_list:
             if not isinstance(subgraph, eqx.Module):
                 raise TypeError("Each entry in subgraph_list must be an eqx.Module.")
-        
-        self.bounds = bounds_arr
         self.subgraphs = list(subgraph_list)
-        self.signal_index = signal_index
 
     def evaluate(self, local_signals: jax.Array) -> jax.Array:
-        signal_val = local_signals[self.signal_index]
-        idx = jnp.searchsorted(self.bounds, signal_val, side='right')
-        branches = [lambda s, sub=sub: sub(s) for sub in self.subgraphs]
-        return jax.lax.switch(idx, branches, local_signals)
+        values = jnp.stack([subgraph(local_signals) for subgraph in self.subgraphs], axis=0)
+        return jnp.prod(values, axis=0)

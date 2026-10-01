@@ -3,7 +3,7 @@ import re
 import sympy
 from sympy.parsing.sympy_parser import parse_expr
 from zgraph import save
-from zgraph.core.operation_nodes import AdditionNode, PiecewiseNode
+from zgraph.core import AdditionNode, PiecewiseNode
 from thermograph.nodes.sgte import SGTESingleNode
 
 class TDBParser:
