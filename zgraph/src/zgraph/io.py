@@ -92,18 +92,6 @@ def deserialize_tree(topology: Dict[str, Any], tensor_registry: Dict[str, np.nda
     for node_id, node_config in nodes_registry.items():
         class_path = node_config["class_path"]
         module_name, class_name = class_path.rsplit(".", 1)
-        
-        # --- Backwards Compatibility Patches ---
-        if class_name == "TropicalAdditionNode":
-            class_name = "TropicalPolynomialNode"
-        elif class_name == "TropicalProductNode":
-            class_name = "TropicalPolynomialNode"
-        elif class_name == "TropicalPowerNode":
-            class_name = "StandardProductNode"
-            module_name = "zgraph.core.utility_nodes"
-        elif class_name == "TropicalDivisionNode":
-            class_name = "TropicalPolynomialNode"
-        # ---------------------------------------
             
         module = importlib.import_module(module_name)
         cls = getattr(module, class_name)
@@ -135,20 +123,6 @@ def deserialize_tree(topology: Dict[str, Any], tensor_registry: Dict[str, np.nda
         skeleton = skeletons[node_id]
         state = node_config["state"]
         resolved_state = resolve_state(state)
-        
-        # --- Backwards Compatibility State Patches ---
-        original_class = node_config["class_path"].rsplit(".", 1)[1]
-        if original_class == "TropicalProductNode":
-            # Convert 'weights' to 'M' matrix
-            weights = resolved_state.pop("weights")
-            resolved_state["M"] = jnp.expand_dims(weights, 0)
-        elif original_class == "TropicalDivisionNode":
-            # Convert numerator/denominator to subgraphs and M=[[1, -1]]
-            num = resolved_state.pop("numerator")
-            den = resolved_state.pop("denominator")
-            resolved_state["subgraphs"] = [num, den]
-            resolved_state["M"] = jnp.array([[1.0, -1.0]], dtype=jnp.float32)
-        # ---------------------------------------------
         
         for k, v in resolved_state.items():
             object.__setattr__(skeleton, k, v)
