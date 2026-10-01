@@ -76,13 +76,15 @@ class TropicalPolynomialNode(ZGraphNode):
 
 
 
+from .constants import DEFAULT_MATMUL_MIN_BETA
+
 class TropicalMatMulNode(ZGraphNode):
     """
     Tropical Matrix Multiplication (Min-Sum / Soft-Min-Sum).
     C_{ij} = ⨁_k (A_{ik} ⊗ B_{kj}) => logsumexp_k(A_{ik} + B_{kj})
     Acts as a routing or message-passing layer between distinct sets of microstates.
     """
-    _MIN_BETA: float = eqx.field(static=True, default=1e-4)
+    _MIN_BETA: float = eqx.field(static=True, default=DEFAULT_MATMUL_MIN_BETA)
     node_A: eqx.Module
     node_B: eqx.Module
     beta: eqx.Module

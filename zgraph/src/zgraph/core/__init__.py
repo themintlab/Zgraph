@@ -24,7 +24,9 @@ def AdditionNode(subgraph_list, weights=None):
 def DivisionNode(numerator, denominator):
     return TropicalPolynomialNode(M_matrix=jnp.array([[1.0, -1.0]], dtype=jnp.float32), subgraph_list=[numerator, denominator])
 
-def TropicalZeroNode(barrier_value=1e9):
+from .constants import TROPICAL_ZERO_BARRIER
+
+def TropicalZeroNode(barrier_value=TROPICAL_ZERO_BARRIER):
     """Tropical Zero Element (for ⊕). Represented as a sufficiently high constant barrier."""
     return ConstantNode(barrier_value)
 

@@ -28,9 +28,8 @@ def marginalize(microstates: jax.Array, beta: Union[float, jax.Array] = 1.0) -> 
     # that occur when beta is very small and energy is large.
     energy_max = jnp.max(microstates, axis=-1, keepdims=True)
     
-    # Safely handle beta=0 (hardmax limit) to prevent division by exactly zero.
-    # The formula naturally evaluates to exactly energy_max.
-    safe_beta = jnp.where(beta == 0.0, 1e-10, beta)
+    from .constants import MIN_SAFE_BETA
+    safe_beta = jnp.where(beta == 0.0, MIN_SAFE_BETA, beta)
     
     centered_energy = (microstates - energy_max) / safe_beta
     sum_exp = jnp.sum(jnp.exp(centered_energy), axis=-1, keepdims=True)
