@@ -1,4 +1,12 @@
-from .tropical_nodes import TropicalAdditionNode, TropicalProductNode, TropicalPowerNode
+from .tropical_nodes import (
+    TropicalAdditionNode, 
+    TropicalProductNode, 
+    TropicalPowerNode,
+    TropicalDivisionNode,
+    TropicalMatMulNode,
+    TropicalZeroNode,
+    TropicalIdentityNode
+)
 from .utility_nodes import PiecewiseNode
 from .leaf_nodes import ConstantNode, SignalNode, SignalNodes
 
@@ -6,14 +14,22 @@ from .leaf_nodes import ConstantNode, SignalNode, SignalNodes
 FactorNode = TropicalAdditionNode
 AdditionNode = TropicalProductNode
 ProductNode = TropicalPowerNode
+DivisionNode = TropicalDivisionNode
+MatMulNode = TropicalMatMulNode
 
 __all__ = [
     "FactorNode",
     "ProductNode",
     "AdditionNode",
+    "DivisionNode",
+    "MatMulNode",
     "TropicalAdditionNode",
     "TropicalProductNode",
     "TropicalPowerNode",
+    "TropicalDivisionNode",
+    "TropicalMatMulNode",
+    "TropicalZeroNode",
+    "TropicalIdentityNode",
     "PiecewiseNode",
     "ConstantNode",
     "SignalNode",
