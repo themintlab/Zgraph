@@ -115,12 +115,23 @@ class TDBParser:
         return node
 
 
-def extract_sgte_library(tdb_path: str, output_dir: str, phases: list = None):
+def extract_sgte_library(tdb_path: str, output_dir: str = None, phases: list = None):
     """
     Reads a CALPHAD .tdb file, parses functional dependencies as exact ZGraph
     hierarchical subgraphs (AdditionNode, PiecewiseNode), and serializes them 
     to the target output library directory.
+    If output_dir is not provided, it defaults to the central library directory 
+    under a folder named after the tdb file.
     """
+    import os
+    from thermograph.config import LIBRARY_DIR
+    
+    if output_dir is None:
+        tdb_name = os.path.splitext(os.path.basename(tdb_path))[0]
+        output_dir = os.path.join(LIBRARY_DIR, tdb_name)
+        
+    os.makedirs(output_dir, exist_ok=True)
+    
     with open(tdb_path, 'r') as f:
         text = f.read()
         
