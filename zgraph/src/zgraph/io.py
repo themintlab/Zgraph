@@ -3,6 +3,7 @@ import json
 import zipfile
 import importlib
 import numpy as np
+import os
 import jax
 import jax.numpy as jnp
 import equinox as eqx
@@ -127,10 +128,13 @@ def deserialize_tree(topology: Dict[str, Any], tensor_registry: Dict[str, np.nda
     return skeletons[topology["root"]]
 
 
-def save(tree: ZGraphNode, filepath: str):
+def save(tree: ZGraphNode, filepath: str, library_dir: str = None):
     """
     Saves a ZGraph PyTree to a .zg hybrid archive.
     """
+    if library_dir is not None and not os.path.isabs(filepath):
+        filepath = os.path.join(library_dir, filepath)
+
     if not filepath.endswith(".zg"):
         filepath += ".zg"
         
@@ -143,15 +147,18 @@ def save(tree: ZGraphNode, filepath: str):
         zf.writestr("weights.safetensors", tensor_bytes)
 
 
-def load(filepath: str) -> ZGraphNode:
+def load(filepath: str, library_dir: str = None) -> ZGraphNode:
     """
     Loads a ZGraph PyTree from a .zg hybrid archive.
     """
+    import os
+    if library_dir is not None and not os.path.isabs(filepath):
+        filepath = os.path.join(library_dir, filepath)
+
     # Pseudo-URI handling for reference models
     if ":" in filepath and not filepath.startswith("http"):
         app, model_name = filepath.split(":", 1)
         # Assuming the library is in the working directory under {app}/library/{model_name}.zg
-        import os
         filepath = os.path.join(app, "library", f"{model_name}.zg")
         
     if not filepath.endswith(".zg"):

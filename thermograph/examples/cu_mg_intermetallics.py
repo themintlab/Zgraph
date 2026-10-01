@@ -1,15 +1,10 @@
-import os, sys
-# Ensure local src directories are prioritized over pip-installed packages
-root_dir = os.getcwd() if not os.getcwd().endswith('examples') else os.path.abspath('../../')
-sys.path.insert(0, os.path.join(root_dir, 'zgraph', 'src'))
-sys.path.insert(0, os.path.join(root_dir, 'thermograph', 'src'))
-
 import jax
 import jax.numpy as jnp
 import numpy as np
 import plotly.graph_objects as go
 
 from zgraph import *
+from thermograph.config import LIBRARY_DIR
 from thermograph.nodes.einstein import GroundStateNode, EinsteinNode
 from thermograph.nodes.sgte import SGTENode
 from thermograph.prediction import PhaseBoundaryPredictor
@@ -48,8 +43,8 @@ phase_CUMG2 = FactorNode([[1/3, 2/3, -1.0]], [mu_Cu, mu_Mg, cumg2_energy], beta=
 GLIQCU = [(3000.0, [2552.0, -1.908, 0, 0, 0, 0, 0, 0])] # Melt at 1337 K
 GLIQMG = [(3000.0, [2000.0, -2.166, 0, 0, 0, 0, 0, 0])] # Melt at 923 K
 
-cu_liq_node = SGTENode(GLIQCU, T_index=0).compile_zgraph_engine()
-mg_liq_node = SGTENode(GLIQMG, T_index=0).compile_zgraph_engine()
+cu_liq_node = load('unary/GLIQCU', library_dir=LIBRARY_DIR).compile_zgraph_engine()
+mg_liq_node = load('unary/GLIQMG', library_dir=LIBRARY_DIR).compile_zgraph_engine()
 
 # Ideal Liquid components
 w_cu_liq = FactorNode([[1.0, -1.0]], [mu_Cu, cu_liq_node])
