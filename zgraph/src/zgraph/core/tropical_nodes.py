@@ -6,12 +6,11 @@ from . import functional as F
 from .base import ZGraphNode
 from .leaf_nodes import ConstantNode
 
-class TropicalAdditionNode(ZGraphNode):
+class TropicalPolynomialNode(ZGraphNode):
     """
-    Tropical Addition (⊕) / Soft Minimum.
-    Computes the logsumexp (soft-max/min) over parallel microstates to collapse them
-    into a partition function. In the min-plus tropical semiring over energy space, 
-    this is the addition operation.
+    Tropical Polynomial.
+    Computes a full tropical polynomial by performing a dense linear transformation
+    (Tropical Products) followed by a logsumexp collapse (Tropical Addition).
     """
     _MIN_BETA: float = eqx.field(static=True, default=1e-4)
     
@@ -20,10 +19,15 @@ class TropicalAdditionNode(ZGraphNode):
     subgraphs: List[eqx.Module]
 
     def __init__(self, 
-                 M_matrix: Union[jax.Array, List[List[float]]], 
-                 subgraph_list: List[eqx.Module], 
+                 M_matrix: Optional[Union[jax.Array, List[List[float]]]] = None, 
+                 subgraph_list: Optional[List[eqx.Module]] = None, 
                  beta: Optional[Union[eqx.Module, float, int, jax.Array]] = None):
-        if isinstance(M_matrix, list):
+        if subgraph_list is None:
+            subgraph_list = []
+            
+        if M_matrix is None:
+            M_matrix_tensor = jnp.eye(len(subgraph_list), dtype=jnp.float32)
+        elif isinstance(M_matrix, list):
             M_matrix_tensor = jnp.array(M_matrix, dtype=jnp.float32)
         else:
             M_matrix_tensor = jnp.array(M_matrix, dtype=jnp.float32)
@@ -67,36 +71,6 @@ class TropicalAdditionNode(ZGraphNode):
         energy_landscape = self.logits(local_signals)
         beta_val = jnp.maximum(self.beta(local_signals), self._MIN_BETA)
         return F.marginalize(energy_landscape, beta_val)
-        
-
-class TropicalProductNode(ZGraphNode):
-    """
-    Tropical Product (⊗) / Standard Addition.
-    Computes a weighted sum of independent subgraphs: sum(w_i * subgraph_i(signals)).
-    In energy space, adding energy terms is equivalent to multiplying their underlying 
-    probabilities, making this the min-plus tropical product operation.
-    """
-    weights: jax.Array
-    subgraphs: List[eqx.Module]
-    
-    def __init__(self, subgraph_list: List[eqx.Module], weights: Optional[Union[jax.Array, List[float]]] = None):
-        if len(subgraph_list) == 0:
-            raise ValueError("subgraph_list must contain at least one subgraph.")
-        for subgraph in subgraph_list:
-            if not isinstance(subgraph, eqx.Module):
-                raise TypeError("Each entry in subgraph_list must be an eqx.Module.")
-        self.subgraphs = list(subgraph_list)
-        if weights is None:
-            self.weights = jnp.ones(len(subgraph_list), dtype=jnp.float32)
-        else:
-            weights_arr = jnp.array(weights, dtype=jnp.float32)
-            if weights_arr.shape != (len(subgraph_list),):
-                raise ValueError("weights must be a 1D array matching the number of subgraphs.")
-            self.weights = weights_arr
-
-    def evaluate(self, local_signals: jax.Array) -> jax.Array:
-        values = jnp.stack([subgraph(local_signals) for subgraph in self.subgraphs], axis=0)
-        return jnp.tensordot(self.weights, values, axes=1)
 
 
 class TropicalPowerNode(ZGraphNode):
@@ -119,25 +93,7 @@ class TropicalPowerNode(ZGraphNode):
         values = jnp.stack([subgraph(local_signals) for subgraph in self.subgraphs], axis=0)
         return jnp.prod(values, axis=0)
 
-class TropicalDivisionNode(ZGraphNode):
-    """
-    Tropical Division (⊘) / Standard Subtraction.
-    Subtracts the output of the denominator subgraph from the numerator subgraph.
-    In energy space, standard subtraction equates to tropical division (dividing probabilities).
-    Essential for calculating relative free energies, defect formation energies, 
-    or isolating excess components.
-    """
-    numerator: eqx.Module
-    denominator: eqx.Module
-    
-    def __init__(self, numerator: eqx.Module, denominator: eqx.Module):
-        if not isinstance(numerator, eqx.Module) or not isinstance(denominator, eqx.Module):
-            raise TypeError("Both numerator and denominator must be eqx.Module instances.")
-        self.numerator = numerator
-        self.denominator = denominator
 
-    def evaluate(self, local_signals: jax.Array) -> jax.Array:
-        return self.numerator(local_signals) - self.denominator(local_signals)
 
 class TropicalMatMulNode(ZGraphNode):
     """

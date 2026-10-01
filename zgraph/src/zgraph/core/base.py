@@ -107,3 +107,104 @@ class ZGraphNode(eqx.Module):
         Example: system.ensemble.logits(signals)
         """
         return BatchProxy(self)
+
+    # --- Operator Overloading (Graph Flattening) ---
+    def _is_1row_tpoly(self):
+        from .tropical_nodes import TropicalPolynomialNode
+        from .leaf_nodes import ConstantNode
+        # Determine if this node is a flat linear combination (1-row M matrix)
+        if isinstance(self, TropicalPolynomialNode) and self.M.shape[0] == 1:
+            # Check that beta is trivially 1.0 (though it doesn't strictly matter for 1-row M)
+            if isinstance(self.beta, ConstantNode) and self.beta.value == 1.0:
+                return True
+        return False
+
+    def __add__(self, other):
+        from .tropical_nodes import TropicalPolynomialNode
+        from .leaf_nodes import ConstantNode
+        
+        self_subgraphs = self.subgraphs if self._is_1row_tpoly() else [self]
+        self_M = self.M[0] if self._is_1row_tpoly() else jnp.array([1.0], dtype=jnp.float32)
+        
+        if isinstance(other, ZGraphNode) and other._is_1row_tpoly():
+            other_subgraphs = other.subgraphs
+            other_M = other.M[0]
+        elif isinstance(other, (int, float, jax.Array)):
+            other_subgraphs = [ConstantNode(other)]
+            other_M = jnp.array([1.0], dtype=jnp.float32)
+        elif isinstance(other, ZGraphNode):
+            other_subgraphs = [other]
+            other_M = jnp.array([1.0], dtype=jnp.float32)
+        else:
+            raise TypeError(f"Unsupported operand type for +: 'ZGraphNode' and '{type(other)}'")
+            
+        new_M = jnp.expand_dims(jnp.concatenate([self_M, other_M]), 0)
+        new_subgraphs = self_subgraphs + other_subgraphs
+        return TropicalPolynomialNode(M_matrix=new_M, subgraph_list=new_subgraphs)
+
+    def __radd__(self, other):
+        if other == 0:
+            return self
+        from .leaf_nodes import ConstantNode
+        if isinstance(other, (int, float, jax.Array)):
+            return ConstantNode(other).__add__(self)
+        raise TypeError(f"Unsupported operand type for +: '{type(other)}' and 'ZGraphNode'")
+
+    def __sub__(self, other):
+        from .tropical_nodes import TropicalPolynomialNode
+        from .leaf_nodes import ConstantNode
+        
+        self_subgraphs = self.subgraphs if self._is_1row_tpoly() else [self]
+        self_M = self.M[0] if self._is_1row_tpoly() else jnp.array([1.0], dtype=jnp.float32)
+        
+        if isinstance(other, ZGraphNode) and other._is_1row_tpoly():
+            other_subgraphs = other.subgraphs
+            other_M = -other.M[0]
+        elif isinstance(other, (int, float, jax.Array)):
+            other_subgraphs = [ConstantNode(other)]
+            other_M = jnp.array([-1.0], dtype=jnp.float32)
+        elif isinstance(other, ZGraphNode):
+            other_subgraphs = [other]
+            other_M = jnp.array([-1.0], dtype=jnp.float32)
+        else:
+            raise TypeError(f"Unsupported operand type for -: 'ZGraphNode' and '{type(other)}'")
+            
+        new_M = jnp.expand_dims(jnp.concatenate([self_M, other_M]), 0)
+        new_subgraphs = self_subgraphs + other_subgraphs
+        return TropicalPolynomialNode(M_matrix=new_M, subgraph_list=new_subgraphs)
+        
+    def __rsub__(self, other):
+        from .leaf_nodes import ConstantNode
+        if isinstance(other, (int, float, jax.Array)):
+            return ConstantNode(other).__sub__(self)
+        raise TypeError(f"Unsupported operand type for -: '{type(other)}' and 'ZGraphNode'")
+
+    def __mul__(self, other):
+        from .tropical_nodes import TropicalPolynomialNode
+        if isinstance(other, (int, float, jax.Array)):
+            scalar = jnp.array(other, dtype=jnp.float32)
+            if self._is_1row_tpoly():
+                new_M = self.M * scalar
+                return TropicalPolynomialNode(M_matrix=new_M, subgraph_list=self.subgraphs)
+            else:
+                return TropicalPolynomialNode(M_matrix=jnp.array([[scalar]], dtype=jnp.float32), subgraph_list=[self])
+        raise TypeError(f"Unsupported operand type for *: 'ZGraphNode' and '{type(other)}'")
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __or__(self, other):
+        """ Tropical Addition (Logsumexp) """
+        from .tropical_nodes import TropicalPolynomialNode
+        # Since logsumexp acts non-linearly over the subgraphs, we do NOT flatten sub-logsumexps together,
+        # but we can collect them into a single Identity matrix.
+        # Actually, flattening multiple | operators is nice: A | B | C -> TPoly(I, [A, B, C])
+        
+        is_self_id = isinstance(self, TropicalPolynomialNode) and self.M.shape[0] == len(self.subgraphs) and jnp.allclose(self.M, jnp.eye(len(self.subgraphs)))
+        is_other_id = isinstance(other, TropicalPolynomialNode) and other.M.shape[0] == len(other.subgraphs) and jnp.allclose(other.M, jnp.eye(len(other.subgraphs)))
+        
+        self_subgraphs = self.subgraphs if is_self_id else [self]
+        other_subgraphs = other.subgraphs if is_other_id else [other]
+        
+        new_subgraphs = self_subgraphs + other_subgraphs
+        return TropicalPolynomialNode(M_matrix=None, subgraph_list=new_subgraphs)
