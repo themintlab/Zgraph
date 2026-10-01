@@ -141,30 +141,15 @@ def parse_tdb(tdb_path: str, phases: Optional[List[str]] = None) -> Dict[str, An
     return nodes
 
 
-def save_library(nodes: Dict[str, Any], output_dir: str = None, library_name: str = "library"):
-    """
-    Saves a dictionary of ZGraph nodes to the specified output directory.
-    If output_dir is not provided, defaults to LIBRARY_DIR / library_name.
-    """
-    from thermograph.config import LIBRARY_DIR
-    
-    if output_dir is None:
-        output_dir = os.path.join(LIBRARY_DIR, library_name)
-        
-    os.makedirs(output_dir, exist_ok=True)
-    
-    saved = []
-    for name, node in nodes.items():
-        filepath = os.path.join(output_dir, f"{name}.zg")
-        save(node, filepath)
-        saved.append(name)
-        
-    print(f"Successfully serialized {len(saved)} nodes to {output_dir}")
-    return saved
-
-
 # Backwards compatibility wrapper
 def extract_sgte_library(tdb_path: str, output_dir: str = None, phases: list = None):
+    from thermograph.config import LIBRARY_DIR
     nodes = parse_tdb(tdb_path, phases)
-    tdb_name = os.path.splitext(os.path.basename(tdb_path))[0]
-    return save_library(nodes, output_dir, library_name=tdb_name)
+    
+    if output_dir is None:
+        tdb_name = os.path.splitext(os.path.basename(tdb_path))[0]
+        output_dir = os.path.join(LIBRARY_DIR, tdb_name)
+        
+    save(nodes, output_dir)
+    print(f"Successfully serialized {len(nodes)} nodes to {output_dir}")
+    return list(nodes.keys())

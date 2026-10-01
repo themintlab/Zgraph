@@ -130,13 +130,7 @@ def deserialize_tree(topology: Dict[str, Any], tensor_registry: Dict[str, np.nda
     return skeletons[topology["root"]]
 
 
-def save(tree: ZGraphNode, filepath: str, library_dir: str = None):
-    """
-    Saves a ZGraph PyTree to a .zg hybrid archive.
-    """
-    if library_dir is not None and not os.path.isabs(filepath):
-        filepath = os.path.join(library_dir, filepath)
-
+def _save_single(tree: ZGraphNode, filepath: str):
     if not filepath.endswith(".zg"):
         filepath += ".zg"
         
@@ -147,6 +141,24 @@ def save(tree: ZGraphNode, filepath: str, library_dir: str = None):
     with zipfile.ZipFile(filepath, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("topology.json", topology_json)
         zf.writestr("weights.safetensors", tensor_bytes)
+
+
+def save(tree: Any, filepath: str, library_dir: str = None):
+    """
+    Saves a ZGraph PyTree to a .zg hybrid archive.
+    If 'tree' is a dictionary, 'filepath' is treated as a directory, and each
+    item is saved as 'filepath/key.zg'.
+    """
+    if library_dir is not None and not os.path.isabs(filepath):
+        filepath = os.path.join(library_dir, filepath)
+
+    if isinstance(tree, dict):
+        os.makedirs(filepath, exist_ok=True)
+        for name, node in tree.items():
+            node_filepath = os.path.join(filepath, str(name))
+            _save_single(node, node_filepath)
+    else:
+        _save_single(tree, filepath)
 
 
 def load(filepath: str, library_dir: str = None) -> ZGraphNode:
