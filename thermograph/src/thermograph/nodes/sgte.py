@@ -18,9 +18,10 @@ class SGTESingleNode(ZGraphNode):
         self.T_index = T_index
 
     def evaluate(self, signals):
+        from thermograph.core.constants import SAFE_MIN_T
         T = signals[self.T_index]
         a, b, c, d, e, f, i, j = self.coeffs
-        T_safe = jnp.maximum(T, 1e-10)
+        T_safe = jnp.maximum(T, SAFE_MIN_T)
         return a + b*T + c*T_safe*jnp.log(T_safe) + d*T**2 + e*T_safe**-1 + f*T**3 + i*T**7 + j*T_safe**-9
 
 class SGTENode(ZGraphNode):
