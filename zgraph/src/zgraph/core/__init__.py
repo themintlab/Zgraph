@@ -1,11 +1,11 @@
-from .tropical_nodes import FactorNode, ProductNode, AdditionNode
+from .tropical_nodes import TropicalAdditionNode, TropicalProductNode, TropicalPowerNode
 from .utility_nodes import PiecewiseNode
 from .leaf_nodes import ConstantNode, SignalNode, SignalNodes
 
-# Tropical Aliases for users wanting mathematically explicit naming
-TropicalAdditionNode = FactorNode
-TropicalProductNode = AdditionNode
-TropicalPowerNode = ProductNode
+# Convenience Aliases for users wanting standard probability/math naming
+FactorNode = TropicalAdditionNode
+AdditionNode = TropicalProductNode
+ProductNode = TropicalPowerNode
 
 __all__ = [
     "FactorNode",

@@ -6,12 +6,12 @@ from . import functional as F
 from .base import ZGraphNode
 from .leaf_nodes import ConstantNode
 
-class FactorNode(ZGraphNode):
+class TropicalAdditionNode(ZGraphNode):
     """
-    Tropical Addition (⊕).
+    Tropical Addition (⊕) / Soft Minimum.
     Computes the logsumexp (soft-max/min) over parallel microstates to collapse them
-    into a partition function. In the tropical semiring over energy space, this 
-    is the addition operation.
+    into a partition function. In the min-plus tropical semiring over energy space, 
+    this is the addition operation.
     """
     _MIN_BETA: float = eqx.field(static=True, default=1e-4)
     
@@ -69,12 +69,12 @@ class FactorNode(ZGraphNode):
         return F.marginalize(energy_landscape, beta_val)
         
 
-class AdditionNode(ZGraphNode):
+class TropicalProductNode(ZGraphNode):
     """
-    Tropical Product (⊗).
+    Tropical Product (⊗) / Standard Addition.
     Computes a weighted sum of independent subgraphs: sum(w_i * subgraph_i(signals)).
     In energy space, adding energy terms is equivalent to multiplying their underlying 
-    probabilities, making this the tropical product operation.
+    probabilities, making this the min-plus tropical product operation.
     """
     weights: jax.Array
     subgraphs: List[eqx.Module]
@@ -99,9 +99,9 @@ class AdditionNode(ZGraphNode):
         return jnp.tensordot(self.weights, values, axes=1)
 
 
-class ProductNode(ZGraphNode):
+class TropicalPowerNode(ZGraphNode):
     """
-    Tropical Power.
+    Tropical Power / Standard Multiplication.
     Multiplies a list of subgraph outputs elementwise. In energy space, scalar 
     multiplication corresponds to exponentiating the underlying probability.
     """
